@@ -38,3 +38,11 @@ dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
 cargo rustc -- -Clink-arg=-nostartfiles
 ```
 
+# Run
+
+- Boot
+
+```bash
+bochs -f ./linux-bochsrc
+```
+
