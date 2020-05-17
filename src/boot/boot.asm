@@ -40,8 +40,34 @@ SectorBalance equ 17 ; 19 - 2 = 17
     VolumeLabel db 'boot loader' ; must be 11 bytes string
     FileSystemType db 'FAT12   ' ; must be 8 bytes string
 
-    ; above fields total 55 bytes, the next fields is: boot code(448 bytes) + 0x55(1 byte) + 0xaa(1 byte)
-    
+; above fields total 55 bytes, the next fields is: boot code(448 bytes) + 0x55(1 byte) + 0xaa(1 byte)
+
+; read one sector from floppy
+_ReadOneSectorFunc:
+    push bp
+    mov bp, sp
+    sub esp, 2 ; alloct 2 bytes stack space 
+    mov byte [bp - 2], cl ; move cl to stack
+    push bx
+    mov bl, [SectorsPerTrack]
+    div bl
+    inc ah
+    mov cl, ah
+    mov dh, al
+    shr al, 1
+    mov ch, al
+    and dh, 1
+    pop bx
+    mov dl, [DriveNumber]
+_Go_On_Reading:    ; while(!call(0x13)), int 0x13 ah = 0x02
+    mov ah, 2
+    mov al, byte [bp - 2]
+    int 0x13
+    jc _Go_On_Reading
+    add esp, 2
+    pop bp
+    ret
+
 
     
 
