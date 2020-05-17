@@ -64,7 +64,7 @@ _Go_On_Reading:    ; while(!call(0x13)), int 0x13 ah = 0x02
     mov al, byte [bp - 2]
     int 0x13
     jc _Go_On_Reading
-    add esp, 2
+    add esp, 2 ; dealloct 2 bytes stack space before function return
     pop bp
     ret
 
