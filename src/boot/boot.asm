@@ -44,8 +44,8 @@ SectorBalance equ 17 ; 19 - 2 = 17
 
 ; read one sector from floppy
 _ReadOneSectorFunc:
-    push bp
-    mov bp, sp
+    push bp ; store previous stack base pointer
+    mov bp, sp ; init new stack frame
     sub esp, 2 ; alloct 2 bytes stack space 
     mov byte [bp - 2], cl ; move cl to stack
     push bx
@@ -65,7 +65,7 @@ _Go_On_Reading:    ; while(!call(0x13)), int 0x13 ah = 0x02
     int 0x13
     jc _Go_On_Reading
     add esp, 2 ; dealloct 2 bytes stack space before function return
-    pop bp
+    pop bp  ; restore previous stack base pointer 
     ret
 
 
