@@ -255,7 +255,7 @@ _Even:
     shr ax, 4 ; ax = (ax >> 4)
 
 _Even_2:
-    add ax, 0x0fff
+    and ax, 0x0fff
     pop bx
     pop es
     ret
