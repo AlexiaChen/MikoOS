@@ -1,4 +1,4 @@
-build:
+buildbootloader:
 	rm -rf bin
 	mkdir bin
 	nasm src/boot/boot.asm -o boot.bin
@@ -14,3 +14,6 @@ copyloader:
 	sudo cp bin/loader.bin /media/
 	sync
 	sudo umount /media/
+
+buildkernel:
+	cargo rustc -- -Clink-arg=-nostartfiles
