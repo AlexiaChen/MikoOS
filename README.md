@@ -1,6 +1,6 @@
 # MikoOS
 
-A implementation of OS based-on bochs written in Rust
+A implementation of OS based-on bochs written C
 
 # Requirement
 
@@ -35,7 +35,7 @@ dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
 - Build kernel
 
 ```bash
-cargo rustc -- -Clink-arg=-nostartfiles
+make buildkernel
 ```
 
 # Run
@@ -43,6 +43,7 @@ cargo rustc -- -Clink-arg=-nostartfiles
 - Boot
 
 ```bash
+# C kernel
 bochs -f ./linux-bochsrc
 ```
 

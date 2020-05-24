@@ -51,8 +51,4 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-
-#Added by cargo
-
-/target
 /bin
