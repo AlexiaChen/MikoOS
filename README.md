@@ -12,33 +12,15 @@ A implementation of OS based-on bochs written C
 sudo apt install nasm bochs bximage
 ```
 
-# Build
+# Build Kernel and Floppy Image
 
-- Build boot
-
-```bash
-nasm boot.asm -o boot.bin
-```
-
-- Create Floppy Disk Image:
-
-```
-bximage -fd -size=1.44 boot.img
-```
-
-- Write boot program into Floppy Disk's MBR sector
+- Build and Burn kernel into floppy
 
 ```bash
-dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
+make
 ```
 
-- Build kernel
-
-```bash
-make buildkernel
-```
-
-# Run
+# Run Kernel floppy image
 
 - Boot
 
