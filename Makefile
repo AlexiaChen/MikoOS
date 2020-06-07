@@ -23,9 +23,11 @@ buildbootloader:
 buildkernel:all
 
 all: bin/system
+	# Remove useless section in system binary file and extract .test .data .bss section from system to kernel.bin
 	objcopy -I elf64-x86-64 -S -R ".eh_frame" -R ".comment" -O binary bin/system bin/kernel.bin
 
 bin/system:	bin/head.o bin/main.o bin/printk.o
+	# generate exectable binary system file
 	ld -b elf64-x86-64 -z muldefs -o bin/system bin/head.o bin/main.o bin/printk.o -T src/kernel/kernel.lds
 
 bin/main.o:	src/kernel/main.c src/kernel/util.h

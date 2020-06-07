@@ -13,11 +13,12 @@
 #define SPECIAL	32		/* 0x */
 #define SMALL	64		/* use 'abcdef' instead of 'ABCDEF' */
 
-#define WHITE 	0x00ffffff		//白
-#define BLACK 	0x00000000		//黑
-#define RED	0x00ff0000		//红
-#define ORANGE	0x00ff8000		//橙
-#define YELLOW	0x00ffff00		//黄
+// one pixel 32 bits color width
+#define WHITE 	0x00ffffff		
+#define BLACK 	0x00000000		
+#define RED		0x00ff0000		
+#define ORANGE	0x00ff8000		
+#define YELLOW	0x00ffff00		
 #define GREEN	0x0000ff00		//绿
 #define BLUE	0x000000ff		//蓝
 #define INDIGO	0x0000ffff		//靛
@@ -50,6 +51,9 @@ struct position
 	unsigned long frame_buffer_length;
 }screen_position;
 
+void init_screen();
+
+void test_color();
 
 void putchar(unsigned int * frame_buffer,int x_size,int x,int y,unsigned int front_color,unsigned int back_color,unsigned char font);
 
