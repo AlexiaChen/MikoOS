@@ -1,10 +1,10 @@
-// Kernel execution head to create segment,page table structure and set some of registers
-
-// Layout of physical memory
-// begin plat address 0xffff00000000000 physical address 0
-// begin address of kernel 0xffff00000000000 ~ 0x100000 (1MB)
-
-// |-------------BootLoader(0 - 1BM)--------|---head.S---|-------------------------Kernel---------
+/* 
+Kernel execution head to create segment,page table structure and set some of registers
+Layout of physical memory
+begin plat address 0xffff00000000000 physical address 0
+begin address of kernel 0xffff00000000000 ~ 0x100000 (1MB)
+|-------------BootLoader(0 - 1BM)--------|---head.S---|-------------------------Kernel---------
+*/
 
 
 .section .text
@@ -60,6 +60,8 @@ entry64:
 	movq	%rax,	%ss
 	movq	$0xffff800000007E00,	%rsp		/* rsp address */
 
+/*
+
 // Exceptions are divided into three types: fault, trap and abort
 
 // fault: An fault is an exception that can be fixed. 
@@ -80,10 +82,14 @@ entry64:
 // The first 32 vector numbers of the IDT table are occupied by exceptions, 
 // and the vector numbers of each exception cannot be modified. They are occupied by the interrupt handler starting from the vector number 32
 
+*/
+
 setup_IDT:							
+	/*
 	// Initialize each interrupt descriptor in the IDT (256 entries in total, 16 bytes each). 
 	// It will ignore_ The starting address and other configuration information of int module are formatted into the interrupt gate descriptor structure information of IA-32e mode orderly, 
 	// and the structure information is saved in rax register (the lower 8 bytes of structure information) and RDX register (the higher 8 bytes of structure information).
+	*/
 	leaq	ignore_int(%rip),	%rdx
 	movq	$(0x08 << 16),	%rax
 	movw	%dx,	%ax
@@ -97,7 +103,7 @@ setup_IDT:
 	leaq	IDT_Table(%rip),	%rdi
 	mov	$256,	%rcx
 rp_sidt:
-	// Finally, initializes 256 interrupt descriptors
+	/* Finally, initializes 256 interrupt descriptors */
 	movq	%rax,	(%rdi)
 	movq	%rdx,	8(%rdi)
 	addq	$0x10,	%rdi
@@ -105,11 +111,13 @@ rp_sidt:
 	jne	rp_sidt
 
 setup_TSS64:
-	// After the completion of IDT initialization, the task state segment descriptor (TSS descriptor) needs to be initialized. 
+	/* 
+	After the completion of IDT initialization, the task state segment descriptor (TSS descriptor) needs to be initialized. 
 	// This part of the program initializes TSS descriptor in GDT (IA-32e mode), and loads the segement selector  of TSS descriptor into TR register through LTR assembly instruction. 
 	// Because the current kernel program has been running under ring 0, even if an exception is generated, the task stack will not be switched, 
 	// so there is no need to access TSS, so TSS does not need to be initialized temporarily. 
 	// That is to say, in the case of no privilege level change, even if the selector of TSS descriptor is not loaded to TR register
+	*/
 	leaq	TSS64_Table(%rip),	%rdx
 	xorq	%rax,	%rax
 	xorq	%rcx,	%rcx
@@ -145,11 +153,13 @@ go_to_kernel:
 //=======	ignore_int
 
 ignore_int:
+	/*
 	// this program first saves the values of each register, and then sets the DS and ES segment registers to kernel data segments, 
 	// followed by color_printk function prepares the parameters and pass them by register.
 	// After the prompt information is displayed, execute the JMP instruction loop
 
 	// pass parameter from x64 mode, pass from left to right is RDI,RSI,RDX,RCX,R8,R9, rest of parameters passed by memory
+	*/
 	cld
 	pushq	%rax
 	pushq	%rbx
