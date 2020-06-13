@@ -6,6 +6,7 @@
 
 // |-------------BootLoader(0 - 1BM)--------|---head.S---|-------------------------Kernel---------
 
+
 .section .text
 
 .globl _start
@@ -59,6 +60,79 @@ entry64:
 	movq	%rax,	%ss
 	movq	$0xffff800000007E00,	%rsp		/* rsp address */
 
+// Exceptions are divided into three types: fault, trap and abort
+
+// fault: An fault is an exception that can be fixed. 
+// As long as the error is corrected, the processor can restore the running environment of the program or task to before the exception occurs (CS and EIP registers have been saved in the stack), 
+// and re-run the exception instruction, that is to say, the return address of the exception points to the instruction generating the fault, rather than the position after it
+
+// trap: The trap also allows the processor to continue instructing the program or task, but the processor will skip the instruction generating the exception, 
+// that is, the return address of the trap exception points to the address after the trap instruction is induced
+
+// abort: The abort exception user reports a very serious error, which often fails to provide the exact location of the exception, and does not allow the program or task to continue to execute. 
+// Typical termination exceptions have hardware errors
+
+// Intel® 64 and IA-32 ArchitecturesSoftware Developer’s Manual Volume 3 
+// https://www.intel.com/content/www/us/en/architecture-and-technology/64-ia-32-architectures-software-developer-system-programming-manual-325384.html
+
+
+// In fact, interrupt and exception vectors are in the same IDT table, but their vector numbers are different. 
+// The first 32 vector numbers of the IDT table are occupied by exceptions, 
+// and the vector numbers of each exception cannot be modified. They are occupied by the interrupt handler starting from the vector number 32
+
+setup_IDT:							
+	// Initialize each interrupt descriptor in the IDT (256 entries in total, 16 bytes each). 
+	// It will ignore_ The starting address and other configuration information of int module are formatted into the interrupt gate descriptor structure information of IA-32e mode orderly, 
+	// and the structure information is saved in rax register (the lower 8 bytes of structure information) and RDX register (the higher 8 bytes of structure information).
+	leaq	ignore_int(%rip),	%rdx
+	movq	$(0x08 << 16),	%rax
+	movw	%dx,	%ax
+	movq	$(0x8E00 << 32),	%rcx		
+	addq	%rcx,	%rax
+	movl	%edx,	%ecx
+	shrl	$16,	%ecx
+	shlq	$48,	%rcx
+	addq	%rcx,	%rax
+	shrq	$32,	%rdx
+	leaq	IDT_Table(%rip),	%rdi
+	mov	$256,	%rcx
+rp_sidt:
+	// Finally, initializes 256 interrupt descriptors
+	movq	%rax,	(%rdi)
+	movq	%rdx,	8(%rdi)
+	addq	$0x10,	%rdi
+	dec	%rcx
+	jne	rp_sidt
+
+setup_TSS64:
+	// After the completion of IDT initialization, the task state segment descriptor (TSS descriptor) needs to be initialized. 
+	// This part of the program initializes TSS descriptor in GDT (IA-32e mode), and loads the segement selector  of TSS descriptor into TR register through LTR assembly instruction. 
+	// Because the current kernel program has been running under ring 0, even if an exception is generated, the task stack will not be switched, 
+	// so there is no need to access TSS, so TSS does not need to be initialized temporarily. 
+	// That is to say, in the case of no privilege level change, even if the selector of TSS descriptor is not loaded to TR register
+	leaq	TSS64_Table(%rip),	%rdx
+	xorq	%rax,	%rax
+	xorq	%rcx,	%rcx
+	movq	$0x89,	%rax
+	shlq	$40,	%rax
+	movl	%edx,	%ecx
+	shrl	$24,	%ecx
+	shlq	$56,	%rcx
+	addq	%rcx,	%rax
+	xorq	%rcx,	%rcx
+	movl	%edx,	%ecx
+	andl	$0xffffff,	%ecx
+	shlq	$16,	%rcx
+	addq	%rcx,	%rax
+	addq	$103,	%rax
+	leaq	GDT_Table(%rip),	%rdi
+	movq	%rax,	64(%rdi)
+	shrq	$32,	%rdx
+	movq	%rdx,	72(%rdi)
+
+	mov	$0x40,	%ax
+	ltr	%ax
+
 	movq	go_to_kernel(%rip),	%rax		/* movq address */
 	pushq	$0x08
 	pushq	%rax
@@ -66,6 +140,80 @@ entry64:
 
 go_to_kernel:
 	.quad	Start_Kernel
+
+
+//=======	ignore_int
+
+ignore_int:
+	// this program first saves the values of each register, and then sets the DS and ES segment registers to kernel data segments, 
+	// followed by color_printk function prepares the parameters and pass them by register.
+	// After the prompt information is displayed, execute the JMP instruction loop
+
+	// pass parameter from x64 mode, pass from left to right is RDI,RSI,RDX,RCX,R8,R9, rest of parameters passed by memory
+	cld
+	pushq	%rax
+	pushq	%rbx
+	pushq	%rcx
+	pushq	%rdx
+	pushq	%rbp
+	pushq	%rdi
+	pushq	%rsi
+
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%r12
+	pushq	%r13
+	pushq	%r14
+	pushq	%r15
+
+	movq	%es,	%rax
+	pushq	%rax
+	movq	%ds,	%rax
+	pushq	%rax
+
+	movq	$0x10,	%rax
+	movq	%rax,	%ds
+	movq	%rax,	%es
+
+	leaq	int_msg(%rip),	%rax			/* leaq get address */
+	pushq	%rax
+	movq	%rax,	%rdx
+	movq	$0x00000000,	%rsi
+	movq	$0x00ff0000,	%rdi
+	movq	$0,	%rax
+	callq	color_printk
+	addq	$0x8,	%rsp
+
+Loop:
+	jmp	Loop	
+
+	popq	%rax
+	movq	%rax,	%ds
+	popq	%rax
+	movq	%rax,	%es
+
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+
+	popq	%rsi
+	popq	%rdi
+	popq	%rbp
+	popq	%rdx
+	popq	%rcx
+	popq	%rbx
+	popq	%rax
+	iretq
+
+int_msg:
+	.asciz "Unknown interrupt or fault at RIP\n"
 
 //=======	init page
 .align 8
@@ -145,6 +293,7 @@ IDT_BASE:	.quad	IDT_Table
 TSS64_Table:
 	.fill  13,8,0
 TSS64_END:
+
 
 TSS64_POINTER:
 TSS64_LIMIT:	.word	TSS64_END - TSS64_Table - 1
