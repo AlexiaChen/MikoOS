@@ -83,11 +83,26 @@ RESTORE_ALL:
 	movq	$-32768,reg;	\
 	andq	%rsp,	reg
 
+/*resotore execution context after interrupt handler retuned*/
 ret_from_exception:
 	/*GET_CURRENT(%ebx)	need rewrite*/
 ENTRY(ret_from_intr)
 	jmp	RESTORE_ALL	/*need rewrite*/
 
+/*
+The following is the module of exception handling. Since the exception does not generate error codes, 
+in order to ensure that all exception handlers have the same stack pressing order, a value of 0 is pushed into the stack to hold the position. After that, 
+the rax register value is pushed into the stack, and then the exception handling function do_ divide_error's starting address of the error is stored in the rax register, 
+and the rax register is exchanged with the value in the stack with the help of the xchgq instruction,
+ and then the register is pushed into the stack in reverse according to the pop-up order of the register
+
+Once the execution context of the process is saved, the corresponding exception handling function can be executed. 
+Because the interrupted program may run at the application layer (ring 3 privilege level) and the exception handler at the kernel layer (ring 0 privilege level), 
+the DS and ES segment registers should be reloaded as kernel layer data segments after entering the kernel layer. 
+Next, the starting address of the exception handling function is loaded into the RDX register, 
+and the error code and stack pointer are respectively stored in the RSI and RDI registers for the use of the exception handling function, 
+and the callq instruction is used to execute the exception
+*/
 
 ENTRY(divide_error)
 	pushq	$0
@@ -129,6 +144,7 @@ error_code:
 	movq	%rsp,	%rdi
 	////GET_CURRENT(%ebx)
 
+    /*abs jmp or call, not relative jmp*/
 	callq 	*%rdx
 
 	jmp	ret_from_exception	
