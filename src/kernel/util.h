@@ -1,6 +1,3 @@
-
-
-
 #ifndef UTIL_H
 #define UTIL_H
 
@@ -23,16 +20,17 @@
 
 typedef int bool_t;
 
-#define is_digit(c)	((c) >= '0' && (c) <= '9')
-
-// num / base 
-int do_div(int num, int base)
+bool_t is_digit(char c)
 {
-    int __res;
-     // num = rdx:rax %%rcx is force use 64-bit register rcx not ecx
-     __asm__("divq %%rcx":"=a" (num),"=d" (__res):"0" (num),"1" (0),"c" (base));
-     return __res; 
+	return (c >= '0' && c <= '9') ? true : false;
 }
+
+// num / base
+// num = rdx:rax %%rcx is force use 64-bit register rcx not ecx
+#define do_div(num,base) ({ \
+int __res; \
+__asm__("divq %%rcx":"=a" (num),"=d" (__res):"0" (num),"1" (0),"c" (base)); \
+__res; })
 
 unsigned char* offset(unsigned char* buf, int count)
 {
