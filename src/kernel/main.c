@@ -15,6 +15,10 @@ void Start_Kernel(void)
 	init_screen(1440, 900);
 	color_printk(YELLOW,BLACK,"Hello\tMiko\tOS!\n");
 
+	load_TR(8);
+	set_tss64(0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 
+		0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00);
+	sys_vector_handler_init();
 	
 	test_divid_zero();
 	while(true);

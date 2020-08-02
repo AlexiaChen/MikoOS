@@ -22,4 +22,7 @@ void machine_check();
 void SIMD_exception();
 void virtualization_exception();
 
+/*init IDT*/
+void sys_vector_handler_init();
+
 #endif
