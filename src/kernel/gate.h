@@ -38,7 +38,7 @@ This _set_gate function parameter is IDT_Table is the identifier that global IDT
 
 */
 
-#define _set_gate(gate_selector_address,attribute,ist,code_address)	\
+#define _set_gate(gate_selector_addr,attr,ist,code_addr)	\
 do								\
 {	unsigned long __d0,__d1;				\
 	__asm__ __volatile__	(	"movw	%%dx,	%%ax	\n\t"	\
@@ -54,13 +54,13 @@ do								\
 					"movq	%%rax,	%0	\n\t"	\
 					"shrq	$32,	%%rdx	\n\t"	\
 					"movq	%%rdx,	%1	\n\t"	\
-					:"=m"(*((unsigned long *)(gate_selector_address)))	,					\
-					 "=m"(*(1 + (unsigned long *)(gate_selector_address))),"=&a"(__d0),"=&d"(__d1)		\
-					:"i"(attribute << 8),									\
-					 "3"((unsigned long *)(code_address)),"2"(0x8 << 16),"c"(ist)				\
+					:"=m"(*((unsigned long *)(gate_selector_addr)))	,					\
+					 "=m"(*(1 + (unsigned long *)(gate_selector_addr))),"=&a"(__d0),"=&d"(__d1)		\
+					:"i"(attr << 8),									\
+					 "3"((unsigned long *)(code_addr)),"2"(0x8 << 16),"c"(ist)				\
 					:"memory"		\
 				);				\
-}while(false)
+}while(0)
 
 /*
 Load the segment selector of TSS segment descriptor to TR rigester
@@ -71,7 +71,7 @@ do{									\
 				:					\
 				:"a"(n << 3)				\
 				:"memory");				\
-}while(false)
+}while(0)
 
 /*
 set every RSP entries and IST entries in TSS segment
