@@ -27,6 +27,9 @@ void set_trap_gate(unsigned int n, unsigned char ist, void *address);
 
 void set_system_gate(unsigned int n, unsigned char ist, void *address);
 
+// int 3
+void set_system_interrupt_gate(unsigned int n, unsigned char ist, void *address);
+
 /*
 functions set_interrupt_gate, set_trap_gate, set_system_gate
 

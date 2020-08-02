@@ -15,6 +15,11 @@ void set_system_gate(unsigned int n, unsigned char ist, void *address)
     _set_gate(IDT_Table + n, 0xEF, ist, address); // P,DPL=3,TYPE=F
 }
 
+void set_system_interrupt_gate(unsigned int n, unsigned char ist, void *address)
+{
+	_set_gate(IDT_Table + n, 0xEE, ist, address); //P,DPL=3,TYPE=E
+}
+
 void set_tss64(unsigned long rsp0, unsigned long rsp1, unsigned long rsp2, unsigned long ist1, unsigned long ist2, unsigned long ist3,
 unsigned long ist4, unsigned long ist5, unsigned long ist6, unsigned long ist7)
 {
