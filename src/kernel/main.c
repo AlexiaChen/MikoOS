@@ -10,6 +10,12 @@ static void test_divid_zero()
 	i = 1/0;
 }
 
+static void test_page_fault()
+{
+	int i;
+	i = *(int*)0xffff80000aa00000;
+}
+
 void Start_Kernel(void)
 {
 	init_screen(1440, 900);
@@ -21,5 +27,6 @@ void Start_Kernel(void)
 	sys_vector_handler_init();
 	
 	test_divid_zero();
+	test_page_fault();
 	while(true);
 }
