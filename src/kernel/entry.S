@@ -101,7 +101,7 @@ Because the interrupted program may run at the application layer (ring 3 privile
 the DS and ES segment registers should be reloaded as kernel layer data segments after entering the kernel layer. 
 Next, the starting address of the exception handling function is loaded into the RDX register, 
 and the error code and stack pointer are respectively stored in the RSI and RDI registers for the use of the exception handling function, 
-and the callq instruction is used to execute the exception
+and the callq instruction is used to execute the exception handler
 */
 
 ENTRY(divide_error)
@@ -156,6 +156,9 @@ ENTRY(debug)
 	xchgq	%rax,	(%rsp)
 	jmp	error_code
 
+/*
+#NMI, can not be interrupted's interrupt instead of exception, but an external interrupt, so that no error code will be generated. It should perform interrupt processing.
+*/
 ENTRY(nmi)
 	pushq	%rax
 	cld;			
