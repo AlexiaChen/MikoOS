@@ -13,7 +13,7 @@ buildbootloader:
 	mkdir bin
 	nasm src/boot/boot.asm -o boot.bin
 	mv boot.bin bin
-	bximage -fd -size=1.44 boot.img
+	bximage -mode=create -q -fd=1.44M boot.img
 	mv boot.img bin
 	dd if=bin/boot.bin of=bin/boot.img bs=512 count=1 conv=notrunc
 	nasm src/boot/loader.asm -o loader.bin
