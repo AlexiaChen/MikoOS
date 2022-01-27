@@ -1,7 +1,7 @@
 plugin_ctrl: unmapped=1, biosdev=1, speaker=1, extfpuirq=1, parallel=1, serial=1, iodebug=1
 config_interface: textconfig
 #display_library: x
-romimage: file=/usr/share/bochs/BIOS-bochs-latest, address=0xf0000
+romimage: file=/usr/share/bochs/BIOS-bochs-latest
 megs: 2048
 vgaromimage: file=/usr/share/vgabios/vgabios.bin
 floppya: 1_44="bin/boot.img", status=inserted, write_protected=0
