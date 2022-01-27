@@ -5,11 +5,12 @@ A implementation of OS based-on bochs written C
 # Requirement
 
 - Bochs 2.6.11
+- Bochs-x
 - NASM
 - bximage
 
 ```bash
-sudo apt install nasm bochs bximage
+sudo apt install nasm bochs bochs-x bximage
 ```
 
 # Build Kernel and Floppy Image
