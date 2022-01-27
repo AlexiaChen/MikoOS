@@ -27,7 +27,7 @@ make
 - Boot
 
 ```bash
-# C kernel
-bochs -f ./linux-bochsrc
+# run kernel on bochs for linux
+bochs -f ./conf/linux-bochsrc
 ```
 
