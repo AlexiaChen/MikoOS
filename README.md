@@ -28,7 +28,7 @@ make
 
 ```bash
 # run kernel on bochs for linux
-bochs -f ./conf/linux-bochsrc
+make run
 ```
 
 ```shell
@@ -38,3 +38,5 @@ bochs> continue
 # exit
 bochs> exit
 ```
+
+
