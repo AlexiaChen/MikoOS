@@ -31,3 +31,10 @@ make
 bochs -f ./conf/linux-bochsrc
 ```
 
+```shell
+# in the interative bochs cli
+bochs> continue
+
+# exit
+bochs> exit
+```
