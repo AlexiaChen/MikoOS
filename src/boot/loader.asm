@@ -9,7 +9,7 @@ OffsetOfKernelFile equ 0x100000 ; 1MB offset
 BaseTempOfKernelAddress equ 0x00 
 OffsetTempOfKernelFile equ 0x7E00 ; Temp space address for reading kernel file
 
-MemoryStructBufferAddress equ 0x7E00
+MemoryStructBufferAddress equ 0x7E00 ; Physical memory address space info saved in physical address 0x7E00 
 
 [SECTION gdt]
 

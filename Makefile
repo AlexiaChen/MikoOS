@@ -26,9 +26,9 @@ all: bin/system
 	# Remove useless section in system binary file and extract .test .data .bss section from system to kernel.bin
 	objcopy -I elf64-x86-64 -S -R ".eh_frame" -R ".comment" -O binary bin/system bin/kernel.bin
 
-bin/system:	bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o
+bin/system:	bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o bin/memory.o
 	# generate exectable binary system file
-	ld -b elf64-x86-64 -z muldefs -o bin/system bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o -T src/kernel/kernel.lds
+	ld -b elf64-x86-64 -z muldefs -o bin/system bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o bin/memory.o -T src/kernel/kernel.lds
 
 bin/main.o:	src/kernel/main.c src/kernel/util.h
 	gcc  -static -mcmodel=large -fno-builtin -m64 -c src/kernel/main.c -fno-stack-protector -o bin/main.o
@@ -42,6 +42,9 @@ bin/gate.o: src/kernel/gate.c src/kernel/util.h
 bin/printk.o: src/kernel/printk.c src/kernel/util.h
 	gcc -static  -mcmodel=large -fno-builtin -m64 -c src/kernel/printk.c -fno-stack-protector -o bin/printk.o
 
+bin/memory.o: src/kernel/memory.c src/kernel/util.h
+	gcc -static -mcmodel=large -fno-builtin -m64 -c src/kernel/memory.c -fno-stack-protector -o bin/memory.o
+
 bin/entry.o: src/kernel/entry.S
 	gcc -E  src/kernel/entry.S > bin/entry.s
 	as --64 -o bin/entry.o bin/entry.s
@@ -52,3 +55,6 @@ bin/head.o:	src/kernel/head.S
 
 clean:
 	rm -rf bin/*
+
+run:
+	bochs -f ./conf/linux-bochsrc

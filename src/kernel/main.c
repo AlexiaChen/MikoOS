@@ -25,8 +25,11 @@ void Start_Kernel(void)
 	set_tss64(0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 
 		0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00);
 	sys_vector_handler_init();
+
 	
-	test_divid_zero();
-	test_page_fault();
+	//test_divid_zero();
+	//test_page_fault();
+
+
 	while(true);
 }

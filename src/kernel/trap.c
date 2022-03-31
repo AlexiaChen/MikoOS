@@ -224,7 +224,7 @@ page error code format: 32-bit
 
 static bool_t is_page_flag_set(unsigned long error_code, int flag)
 {
-    return ((error_code & flag) == 1) ? true : false;
+  return ((error_code & flag) == 1) ? true : false;
 }
 
 void do_page_fault(unsigned long rsp, unsigned long error_code)
@@ -237,8 +237,8 @@ void do_page_fault(unsigned long rsp, unsigned long error_code)
 	p = (unsigned long *)(rsp + 0x98);
 	color_printk(RED,BLACK,"do_page_fault(14),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\n",error_code , rsp , *p);
 
-    if(!is_page_flag_set(error_code, P_FLAG))
-		color_printk(RED,BLACK,"Page Not-Present,\t");
+  if(!is_page_flag_set(error_code, P_FLAG))
+	color_printk(RED,BLACK,"Page Not-Present,\t");
 
 	if(is_page_flag_set(error_code, WR_FLAG))
 		color_printk(RED,BLACK,"Write Cause Fault,\t");
@@ -260,42 +260,42 @@ void do_page_fault(unsigned long rsp, unsigned long error_code)
 
 	color_printk(RED,BLACK,"CR2:%#018lx\n",cr2);
 
-    while(true);
+  while(true);
 }
 
 void do_x87_FPU_error(unsigned long rsp, unsigned long error_code)
 {
-    do_print_trap_context("do_x87_FPU_error(16)", rsp, error_code);
+  do_print_trap_context("do_x87_FPU_error(16)", rsp, error_code);
 	while(true);
 }
 
 void do_alignment_check(unsigned long rsp, unsigned long error_code)
 {
-    do_print_trap_context("do_alignment_check(17)", rsp, error_code);
+  do_print_trap_context("do_alignment_check(17)", rsp, error_code);
 	while(true);
 }
 
 void do_machine_check(unsigned long rsp,unsigned long error_code)
 {
-    do_print_trap_context("do_machine_check(18)", rsp, error_code);
+  do_print_trap_context("do_machine_check(18)", rsp, error_code);
 	while(true);
 }
 
 void do_SIMD_exception(unsigned long rsp,unsigned long error_code)
 {
-    do_print_trap_context("do_SIMD_exception(19)", rsp, error_code);
+  do_print_trap_context("do_SIMD_exception(19)", rsp, error_code);
 	while(true);
 }
 
 void do_virtualization_exception(unsigned long rsp,unsigned long error_code)
 {
-    do_print_trap_context("do_virtualization_exception(20)", rsp, error_code);
+  do_print_trap_context("do_virtualization_exception(20)", rsp, error_code);
 	while(true);
 }
 
 void sys_vector_handler_init()
 {
-    set_trap_gate(0,1,divide_error);
+  set_trap_gate(0,1,divide_error);
 	set_trap_gate(1,1,debug);
 	set_interrupt_gate(2,1,nmi);
 	set_system_gate(3,1,int3);
