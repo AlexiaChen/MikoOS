@@ -2,6 +2,7 @@
 #include "util.h"
 #include "gate.h"
 #include "trap.h"
+#include "memory.h"
 
 // for test divided by zero fault
 static void test_divid_zero()
@@ -26,6 +27,10 @@ void Start_Kernel(void)
 		0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00);
 	sys_vector_handler_init();
 
+	struct GlobalMemoryDescriptor memory_management_struct = {{0},0};
+
+	color_printk(RED,BLACK,"init memory\n");
+    init_memory();
 	
 	//test_divid_zero();
 	//test_page_fault();

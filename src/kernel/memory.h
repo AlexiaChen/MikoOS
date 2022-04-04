@@ -1,3 +1,6 @@
+#ifndef __MEMORY_H__
+#define __MEMORY_H__
+
 #include "util.h"
 
 // 8 Bytes per cell, the number of bytes per page table entry in 64-bit mode is expanded from 4 bytes to 8 bytes
@@ -63,3 +66,28 @@ struct MemoryE820Format
   unsigned int length2;
   unsigned int type;
 };
+
+// The special attribute __attribute__((packed)) in the structure; 
+// modifying the structure will not generate the alignment space, and instead use the compact format, 
+// which is the only way to correctly index the memory space distribution information at 
+// the linear address 0xffff800000007e00 from the struct E820 structure
+struct E820
+{
+  unsigned long address;
+  unsigned long length;
+  unsigned int  type;
+}__attribute__((packed));
+
+
+// Saving all information about memory for use by memory management modules
+struct GlobalMemoryDescriptor
+{
+  struct E820     e820[32];
+  unsigned long   e820_length;
+};
+
+extern struct GlobalMemoryDescriptor memory_management_struct;
+
+void init_memory();
+
+#endif
