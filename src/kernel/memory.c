@@ -16,12 +16,12 @@ void init_memory()
   for(i = 0; i < 32; ++i)
   {
      color_printk(ORANGE,BLACK,"Address:%#010x,%08x\tLength:%#010x,%08x\tType:%#010x\n", p->address2, p->address1, p->length2, p->length1, p->type);
-     unsigned int temp = 0;
+     unsigned long temp = 0;
      // type = 1 is useable physical memory space
      // the usable physical memory space capacity is combined of two parts:
      // part one: capacity is 0x9f000
      // part two: capacity is 0x7fef0000
-     // total is 0x7ff8f000 Byte near 2GB
+     // total is 0x7ff8f000 Byte near 2GB  （megs: 2048 see conf folder linux-bochsrc）
      if(p->type == 1)
      {
        temp = p->length2;
