@@ -87,8 +87,7 @@ void init_memory()
      if(memory_management_struct.e820[i].type == 1)
      {
        start = PAGE_2M_UPPER_ALIGN(memory_management_struct.e820[i].address);
-       end = ((memory_management_struct.e820[i].address + memory_management_struct.e820[i].length) 
-              >> PAGE_2M_SHIFT) << PAGE_2M_SHIFT;
+       end = PAGE_2M_LOWER_ALIGN(memory_management_struct.e820[i].address + memory_management_struct.e820[i].length) << PAGE_2M_SHIFT;
       if(end > start)
       {
         total_pages += PAGE_2M_LOWER_ALIGN(end - start);
