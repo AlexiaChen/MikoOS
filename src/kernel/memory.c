@@ -48,7 +48,7 @@ void init_memory()
      // part one: capacity is 0x9f000
      // part two: capacity is 0x7fef0000
      // total is 0x7ff8f000 Byte near 2GB  （megs: 2048 see conf folder linux-bochsrc）
-     if(p->type == 1)
+     if(p->type == E820_RAM)
      {
        total_mem += p->length;
      }
@@ -60,8 +60,9 @@ void init_memory()
 
      p++;
      // normally, type is cannot greater than 4, if it is, program must meet junk data while running
-     if(p->type > 4)
+     if(p->type > E820_ACPI_NVS)
      {
+       color_printk(RED,BLACK,"Junk data\n");
        break;
      }
   }
@@ -84,7 +85,7 @@ void init_memory()
   {
      unsigned long start, end;
      // usable physical memory space
-     if(global_e820_table.entries[i].type == 1)
+     if(global_e820_table.entries[i].type == E820_RAM)
      {
        start = PAGE_2M_UPPER_ALIGN(global_e820_table.entries[i].address);
        end = PAGE_2M_LOWER_ALIGN(global_e820_table.entries[i].address + global_e820_table.entries[i].length) << PAGE_2M_SHIFT;

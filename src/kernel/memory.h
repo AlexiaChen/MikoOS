@@ -45,6 +45,16 @@ unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr);
 unsigned long VirtualToPhysicalAddr(unsigned long addr);
 unsigned long* PhysicalToVirtualAddr(unsigned long addr);
 
+enum E820EntryType
+{
+  E820_RAM = 1, // Usable (normal) RAM
+  E820_RESERVED = 2, // Reserved - unusable
+  E820_ACPI_RECLAIM = 3, // ACPI reclaimable memory
+  E820_ACPI_NVS = 4, // ACPI NVS memory
+  E820_BAD_MEMORY = 5, // Area containing bad memory
+  E820_UNDEFINED = 0
+};
+
 // There are several groups of physical address space information at address 7E00h, 
 // which describe the address space division of the computer platform, 
 // the number of which will depend on the current motherboard hardware configuration and physical memory capacity information, 
@@ -72,6 +82,8 @@ struct E820Entry
 #define E820_MAX_ENTRIES 32
 
 // Saving all information about memory for use by memory management modules
+// E820 https://en.wikipedia.org/wiki/E820
+// https://wiki.osdev.org/Detecting_Memory_(x86)
 struct GlobalE820Table
 {
   struct E820Entry entries[E820_MAX_ENTRIES];
