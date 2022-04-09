@@ -17,6 +17,8 @@ static void test_page_fault()
 	i = *(int*)0xffff80000aa00000;
 }
 
+struct GlobalMemoryDescriptor memory_management_struct = {{0}, 0};
+
 void Start_Kernel(void)
 {
 	init_screen(1440, 900);

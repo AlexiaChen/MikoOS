@@ -32,27 +32,15 @@ const unsigned long PAGE_4K_MASK = (~ (PAGE_4K_SIZE - 1));
 
 
 // The inline function PAGE_2M_ALIGN(addr) is used to set the parameter addr to the upper boundary of the 2 MB page pair
-inline unsigned long PAGE_2M_ALIGN(unsigned long addr) 
-{
-  return ((addr + PAGE_2M_SIZE - 1) & PAGE_2M_MASK);
-}
-inline unsigned long PAGE_4K_ALIGN(unsigned long addr) 
-{
-  return ((addr + PAGE_4K_SIZE - 1) & PAGE_4K_MASK);
-}   
+unsigned long PAGE_2M_ALIGN(unsigned long addr);
+unsigned long PAGE_4K_ALIGN(unsigned long addr);
 
 // The inline function VirtualToPhysicalAddr(addr) is used to convert the kernel level virtual address to physical address, 
 // please note that this function is conditional, currently only the first 10 MB of the physical address is mapped to 
 // the linear address 0xffff800000000000 (in the page table defined in the head.S file), and only this 10 MB of memory space is available 
 // for this  function
-inline unsigned long VirtualToPhysicalAddr(unsigned long addr)
-{
-  return addr - PAGE_OFFSET; 
-}
-inline unsigned long* PhysicalToVirtualAddr(unsigned long addr)
-{
-  return (unsigned long*)(addr + PAGE_OFFSET);
-}
+unsigned long VirtualToPhysicalAddr(unsigned long addr);
+unsigned long* PhysicalToVirtualAddr(unsigned long addr);
 
 // There are several groups of physical address space information at address 7E00h, 
 // which describe the address space division of the computer platform, 
