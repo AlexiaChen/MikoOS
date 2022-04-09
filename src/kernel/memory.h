@@ -62,22 +62,23 @@ struct MemoryE820Format
 // modifying the structure will not generate the alignment space, and instead use the compact format, 
 // which is the only way to correctly index the memory space distribution information at 
 // the linear address 0xffff800000007e00 from the struct E820 structure
-struct E820
+struct E820Entry
 {
   unsigned long address;
   unsigned long length;
   unsigned int  type;
 }__attribute__((packed));
 
+#define E820_MAX_ENTRIES 32
 
 // Saving all information about memory for use by memory management modules
-struct GlobalMemoryDescriptor
+struct GlobalE820Table
 {
-  struct E820     e820[32];
-  unsigned long   e820_length;
+  struct E820Entry entries[E820_MAX_ENTRIES];
+  unsigned long   number_entries;
 };
 
-extern struct GlobalMemoryDescriptor memory_management_struct;
+extern struct GlobalE820Table global_e820_table;
 
 void init_memory();
 

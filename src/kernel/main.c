@@ -17,7 +17,7 @@ static void test_page_fault()
 	i = *(int*)0xffff80000aa00000;
 }
 
-struct GlobalMemoryDescriptor memory_management_struct = {{0}, 0};
+struct GlobalE820Table global_e820_table = {{0}, 0};
 
 void Start_Kernel(void)
 {
@@ -28,8 +28,6 @@ void Start_Kernel(void)
 	set_tss64(0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 
 		0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00, 0xffff800000007c00);
 	sys_vector_handler_init();
-
-	struct GlobalMemoryDescriptor memory_management_struct = {{0},0};
 
 	color_printk(RED,BLACK,"init memory\n");
     init_memory();

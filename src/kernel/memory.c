@@ -34,12 +34,12 @@ void init_memory()
 {
   int i, j;
   unsigned long total_mem = 0;
-  struct E820 *p = NULL;
+  struct E820Entry *p = NULL;
   color_printk(BLUE,BLACK,"Display Physics Address MAP,Type(1:RAM,2:ROM or Reserved,3:ACPI Reclaim Memory,4:ACPI NVS Memory,Others:Undefine)\n");
 
-  p = (struct E820*)0xffff800000007e00;
+  p = (struct E820Entry*)0xffff800000007e00;
 
-  for(i = 0; i < 32; ++i)
+  for(i = 0; i < E820_MAX_ENTRIES; ++i)
   {
      color_printk(ORANGE,BLACK,"Address:%#018lx\tLength:%#018lx\tType:%#010x\n",p->address, p->length, p->type);
      unsigned long temp = 0;
@@ -53,10 +53,10 @@ void init_memory()
        total_mem += p->length;
      }
 
-     memory_management_struct.e820[i].address += p->address;
-     memory_management_struct.e820[i].length += p->length;
-     memory_management_struct.e820[i].type = p->type;
-     memory_management_struct.e820_length = i;
+     global_e820_table.entries[i].address += p->address;
+     global_e820_table.entries[i].length += p->length;
+     global_e820_table.entries[i].type = p->type;
+     global_e820_table.number_entries = i;
 
      p++;
      // normally, type is cannot greater than 4, if it is, program must meet junk data while running
@@ -80,14 +80,14 @@ void init_memory()
   // and the number of available physical pages is calculated and the total number of 
   // available physical pages is printed on the screen.
   unsigned long total_pages = 0;
-  for(i = 0; i < memory_management_struct.e820_length; ++i)
+  for(i = 0; i < global_e820_table.number_entries; ++i)
   {
      unsigned long start, end;
      // usable physical memory space
-     if(memory_management_struct.e820[i].type == 1)
+     if(global_e820_table.entries[i].type == 1)
      {
-       start = PAGE_2M_UPPER_ALIGN(memory_management_struct.e820[i].address);
-       end = PAGE_2M_LOWER_ALIGN(memory_management_struct.e820[i].address + memory_management_struct.e820[i].length) << PAGE_2M_SHIFT;
+       start = PAGE_2M_UPPER_ALIGN(global_e820_table.entries[i].address);
+       end = PAGE_2M_LOWER_ALIGN(global_e820_table.entries[i].address + global_e820_table.entries[i].length) << PAGE_2M_SHIFT;
       if(end > start)
       {
         total_pages += PAGE_2M_LOWER_ALIGN(end - start);

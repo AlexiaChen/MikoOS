@@ -276,15 +276,15 @@ KillMotor:
 	mov	di,	MemoryStructBufferAddress
 
 _Get_Mem_Struct:
-
-	mov	eax,	0x0E820
-	mov	ecx,	20
-	mov	edx,	0x534D4150
+	; E820 memory map
+	mov	eax,	0x0E820 ; 
+	mov	ecx,	20 ; buffer szie must >= 20
+	mov	edx,	0x534D4150 ; signature "SMAP" used by the BIOS to verify the caller is requesting the system map info to be returned by
 	int	15h
 	jc	_Get_Mem_Fail
 	add	di,	20
 
-	cmp	ebx,	0
+	cmp	ebx,	0; returned previous memory map if first call it return 0
 	jne	_Get_Mem_Struct
 	jmp	_Get_Mem_OK
 
