@@ -17,10 +17,20 @@ extern struct desc_struct GDT_Table[];
 extern struct gate_struct IDT_Table[];
 extern unsigned int TSS64_Table[26];
 
+
+enum GateAttribute
+{
+	GATE_INTERRUPT = 0x8E,
+	GATE_TRAP = 0x8F,
+	GATE_SYSTEM = 0xEF,
+	GATE_SYSTEM_INTERRUPT = 0xEE
+};
+
 /*
 Initialize each table item in the IDT, and configure the descriptor as interrupt gate and trap gate with DPL = 0 or trap gate with DPL = 3 according to the exception type
 */
 
+// parameter n is the index of the IDT table
 void set_interrupt_gate(unsigned int n, unsigned char ist, void *address);
 
 void set_trap_gate(unsigned int n, unsigned char ist, void *address);

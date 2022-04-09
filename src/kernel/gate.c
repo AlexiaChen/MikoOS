@@ -2,22 +2,22 @@
 
 void set_interrupt_gate(unsigned int n, unsigned char ist, void *address)
 {
-    _set_gate(IDT_Table + n, 0x8E, ist, address); // P,DPL=0,TYPE=E
+    _set_gate(IDT_Table + n, GATE_INTERRUPT, ist, address); // P,DPL=0,TYPE=E
 }
 
 void set_trap_gate(unsigned int n, unsigned char ist, void *address)
 {
-    _set_gate(IDT_Table + n, 0x8F, ist, address); // P,DPL=0,TYPE=F
+	_set_gate(IDT_Table + n, GATE_TRAP, ist, address); // P,DPL=0,TYPE=F
 }
 
 void set_system_gate(unsigned int n, unsigned char ist, void *address)
 {
-    _set_gate(IDT_Table + n, 0xEF, ist, address); // P,DPL=3,TYPE=F
+    _set_gate(IDT_Table + n, GATE_SYSTEM, ist, address); // P,DPL=3,TYPE=F
 }
 
 void set_system_interrupt_gate(unsigned int n, unsigned char ist, void *address)
 {
-	_set_gate(IDT_Table + n, 0xEE, ist, address); //P,DPL=3,TYPE=E
+	_set_gate(IDT_Table + n, GATE_SYSTEM_INTERRUPT, ist, address); //P,DPL=3,TYPE=E
 }
 
 void set_tss64(unsigned long rsp0, unsigned long rsp1, unsigned long rsp2, unsigned long ist1, unsigned long ist2, unsigned long ist3,
