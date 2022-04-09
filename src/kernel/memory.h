@@ -32,8 +32,8 @@ const unsigned long PAGE_4K_MASK = (~ (PAGE_4K_SIZE - 1));
 
 
 // The inline function PAGE_2M_ALIGN(addr) is used to set the parameter addr to the upper boundary of the 2 MB page pair
-unsigned long PAGE_2M_ALIGN(unsigned long addr);
-unsigned long PAGE_4K_ALIGN(unsigned long addr);
+unsigned long PAGE_2M_UPPER_ALIGN(unsigned long addr);
+unsigned long PAGE_4K_UPPER_ALIGN(unsigned long addr);
 
 // The inline function VirtualToPhysicalAddr(addr) is used to convert the kernel level virtual address to physical address, 
 // please note that this function is conditional, currently only the first 10 MB of the physical address is mapped to 

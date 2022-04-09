@@ -1,12 +1,12 @@
 #include "memory.h"
 #include "printk.h"
 
-unsigned long PAGE_2M_ALIGN(unsigned long addr) 
+unsigned long PAGE_2M_UPPER_ALIGN(unsigned long addr) 
 {
   return ((addr + PAGE_2M_SIZE - 1) & PAGE_2M_MASK);
 }
 
-unsigned long PAGE_4K_ALIGN(unsigned long addr) 
+unsigned long PAGE_4K_UPPER_ALIGN(unsigned long addr) 
 {
   return ((addr + PAGE_4K_SIZE - 1) & PAGE_4K_MASK);
 }   
@@ -81,7 +81,7 @@ void init_memory()
      // usable physical memory space
      if(memory_management_struct.e820[i].type == 1)
      {
-       start = PAGE_2M_ALIGN(memory_management_struct.e820[i].address);
+       start = PAGE_2M_UPPER_ALIGN(memory_management_struct.e820[i].address);
        end = ((memory_management_struct.e820[i].address + memory_management_struct.e820[i].length) 
               >> PAGE_2M_SHIFT) << PAGE_2M_SHIFT;
       if(end > start)
