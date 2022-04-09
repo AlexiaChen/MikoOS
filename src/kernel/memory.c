@@ -9,7 +9,12 @@ unsigned long PAGE_2M_UPPER_ALIGN(unsigned long addr)
 unsigned long PAGE_4K_UPPER_ALIGN(unsigned long addr) 
 {
   return ((addr + PAGE_4K_SIZE - 1) & PAGE_4K_MASK);
-}   
+}
+
+unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr) 
+{
+  return (addr >> PAGE_2M_SHIFT);
+}
 
 unsigned long VirtualToPhysicalAddr(unsigned long addr)
 {
@@ -86,7 +91,7 @@ void init_memory()
               >> PAGE_2M_SHIFT) << PAGE_2M_SHIFT;
       if(end > start)
       {
-        total_pages += (end - start) >> PAGE_2M_SHIFT;
+        total_pages += PAGE_2M_LOWER_ALIGN(end - start);
       }      
      }
   }
