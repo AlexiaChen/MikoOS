@@ -10,7 +10,7 @@ SECTIONS
 		_text = .;
 		*(.text)
 
-		_etext = .;
+		_endtext = .;
 	}
 	. = ALIGN(8);
 	.data :
@@ -18,13 +18,13 @@ SECTIONS
 		_data = .;
 		*(.data)
 		
-		_edata = .;
+		_enddata = .;
 	}
 	.bss :
 	{
 		_bss = .;
 		*(.bss)
-		_ebss = .;
+		_endbss = .;
 	}
 
 	_end = .;

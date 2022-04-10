@@ -4,6 +4,7 @@
 #include "printk.h"
 #include "util.h"
 #include "linkage.h"
+#include "memory.h"
 
 static int TAB_HOLD_CHARS = 8;
 static int ONE_CHAR_WIDTH = 8; // 8 pixel
@@ -117,7 +118,7 @@ void init_screen(int width, int height)
     set_screen_size(width, height);
     move_cursor_position(0, 0);
     set_char_size(ONE_CHAR_WIDTH, ONE_CHAR_HEIGHT);
-    set_screen_buffer((unsigned int *)FRAME_BUFFER_MAPPED_ADDRESS, screen_width() * screen_height() * ONE_PIXEL_32_BITS_WIDTH);
+    set_screen_buffer((unsigned int *)FRAME_BUFFER_MAPPED_ADDRESS, (screen_width() * screen_height() * ONE_PIXEL_32_BITS_WIDTH + PAGE_4K_SIZE - 1) & PAGE_4K_MASK);
 }
 
 void test_color(int width, int height)

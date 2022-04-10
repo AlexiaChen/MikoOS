@@ -86,11 +86,68 @@ struct E820Entry
 // https://wiki.osdev.org/Detecting_Memory_(x86)
 struct GlobalE820Table
 {
-  struct E820Entry entries[E820_MAX_ENTRIES];
-  unsigned long   number_entries;
+  struct E820Entry entries[E820_MAX_ENTRIES]; // Physical memory segments array
+  unsigned long   number_entries; // Number of physical memory segments
 };
 
-extern struct GlobalE820Table global_e820_table;
+struct GlobalMemoryDescriptor
+{
+  struct GlobalE820Table e820;
+
+  unsigned long   bits_map; // Physical space page(struct page) bitmap
+  unsigned long   bits_size;  // number of physical space page 
+  unsigned long   bits_length; // Number of bits in the bitmap
+
+  struct Page* pages; // Physical space page array
+  unsigned long   pages_size; // number of struct page
+  unsigned long   pages_length; // length of struct page array
+
+  struct Zone* zones; //  zones array
+  unsigned long   zones_size; // number of struct zone
+  unsigned long   zones_length; // length of struct zone array
+
+  unsigned long  start_kernel_code; // start address of kernel code segment
+  unsigned long  end__kernel_code;  // end address of kernel code segment
+  unsigned long  end_data; // end address of kernel data segment
+  unsigned long  end_brk; // end address of kernel (BSS segmengt)
+
+  unsigned long  end_of_struct; // end address of struct GlobalMemoryDescriptor
+};
+
+// every 2M physical page is represent a page
+struct Page
+{
+  struct Zone *zone;          // pointer to the zone that the page belongs to
+  unsigned long physical_address; // physical address of the page
+  unsigned long attribute; // page attribute (mapping state of the page, active state, user info etc )
+
+  unsigned long reference_count; // reference count of the page
+  unsigned long create_time; // the time when the page is created
+};
+
+struct Zone
+{
+  struct Page*   pages; // pointer to the first page of the zone
+  unsigned long  number_pages; // number of pages in the zone
+
+  unsigned long  start_address; // start address of the zone
+  unsigned long  end_address; // end address of the zone
+  unsigned long  attribute; // zone attribute （Describes whether the current zone supports DMA, whether the pages are mapped through the page table, and other information.）
+  unsigned long  length; //  length of the zone align by page size
+
+  struct GlobalE820Table* e820_table; // pointer to the global e820 table
+
+  unsigned long page_using_count; // number of pages using in the zone
+  unsigned long page_free_count; // number of pages free in the zone
+
+  // Since the mapping of physical pages in the page table can be a one-to-many 
+  // relationship, a physical page can be mapped to multiple locations in the linear 
+  // address space at the same time, so the member variables total_pages_ref_count and 
+  // page_using_count are not necessarily equal in value
+  unsigned long total_pages_ref_count; // all of  pages reference count
+};
+
+extern struct GlobalMemoryDescriptor global_memory_descriptor;
 
 void init_memory();
 

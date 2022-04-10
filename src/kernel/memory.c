@@ -53,16 +53,16 @@ void init_memory()
        total_mem += p->length;
      }
 
-     global_e820_table.entries[i].address += p->address;
-     global_e820_table.entries[i].length += p->length;
-     global_e820_table.entries[i].type = p->type;
-     global_e820_table.number_entries = i;
+     global_memory_descriptor.e820.entries[i].address += p->address;
+     global_memory_descriptor.e820.entries[i].length += p->length;
+     global_memory_descriptor.e820.entries[i].type = p->type;
+     global_memory_descriptor.e820.number_entries = i;
 
      p++;
      // normally, type is cannot greater than 4, if it is, program must meet junk data while running
-     if(p->type > E820_ACPI_NVS)
+     if(p->type > E820_ACPI_NVS || p->length == 0 || p->type < E820_RAM)
      {
-       color_printk(RED,BLACK,"Junk data\n");
+       color_printk(RED,BLACK,"Junk data in E820 table\n");
        break;
      }
   }
@@ -81,14 +81,14 @@ void init_memory()
   // and the number of available physical pages is calculated and the total number of 
   // available physical pages is printed on the screen.
   unsigned long total_pages = 0;
-  for(i = 0; i < global_e820_table.number_entries; ++i)
+  for(i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
   {
      unsigned long start, end;
      // usable physical memory space
-     if(global_e820_table.entries[i].type == E820_RAM)
+     if(global_memory_descriptor.e820.entries[i].type == E820_RAM)
      {
-       start = PAGE_2M_UPPER_ALIGN(global_e820_table.entries[i].address);
-       end = PAGE_2M_LOWER_ALIGN(global_e820_table.entries[i].address + global_e820_table.entries[i].length) << PAGE_2M_SHIFT;
+       start = PAGE_2M_UPPER_ALIGN(global_memory_descriptor.e820.entries[i].address);
+       end = PAGE_2M_LOWER_ALIGN(global_memory_descriptor.e820.entries[i].address + global_memory_descriptor.e820.entries[i].length) << PAGE_2M_SHIFT;
       if(end > start)
       {
         total_pages += PAGE_2M_LOWER_ALIGN(end - start);
