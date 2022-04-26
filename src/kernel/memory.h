@@ -95,7 +95,7 @@ struct GlobalMemoryDescriptor
   struct GlobalE820Table e820;
 
   unsigned long   bits_map; // Physical space page(struct page) bitmap (address)
-  unsigned long   bits_size;  // number of physical space page 
+  unsigned long   bits_size;  // number of pages in the physical space
   unsigned long   bits_length; // Number of bytes in the bitmap
 
   struct Page* pages; // Physical space page array
