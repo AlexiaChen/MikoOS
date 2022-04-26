@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "printk.h"
+#include "util.h"
 
 unsigned long PAGE_2M_UPPER_ALIGN(unsigned long addr) 
 {
@@ -98,9 +99,34 @@ void init_memory()
 
   color_printk(ORANGE,BLACK,"OS Can Used Total 2M Pages:%#010x=%010d\n",total_pages, total_pages);
 
-  total_mem = 0;
-  total_mem = global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].address 
+  
+  // |  -----  physical memory space for pages (ROM or void memory pages etc)  -----  |   -- isolated space --    | bitmap 
+  unsigned long end_addr_of_physical_space = 
+    global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].address 
     + global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].length;
+
+  // bits map pointer, pointer to end address of kernel
+  // This is done to preserve a small section of isolated space to prevent misuse from corrupting data in other spaces (this is why  upper alginment needed)
+  global_memory_descriptor.bits_map = PAGE_4K_UPPER_ALIGN(global_memory_descriptor.end_brk);
+  // number of avaible 2M pages
+  // This physical address space avaible pages that include not only available physical memory, 
+  // but also memory voids and ROM address space
+  global_memory_descriptor.bits_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
+  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + sizeof(long) * 8 - 1) / 8) & ( ~ (sizeof(long) - 1));
+  // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
+  // and then the available physical memory pages in the map bitmap are programmatically reset later.
+  memset((unsigned long*)global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
+
+
+
+
+
+
+
+
+
+
+
 
 
 }
