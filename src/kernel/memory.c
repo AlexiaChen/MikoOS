@@ -112,7 +112,11 @@ void init_memory()
   // This physical address space avaible pages that include not only available physical memory, 
   // but also memory voids and ROM address space
   global_memory_descriptor.bits_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
-  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + sizeof(long) * 8 - 1) / 8) & ( ~ (sizeof(long) - 1));
+  
+  static const unsigned long bits_per_byte = 8;
+  static const unsigned long long_type_bytes = sizeof(long);
+  static const unsigned long long_type_bits = long_type_bytes * bits_per_byte;
+  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + long_type_bits - 1) / bits_per_byte) & ( ~ (long_type_bytes - 1));
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
   memset((unsigned long*)global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
