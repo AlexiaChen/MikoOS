@@ -53,10 +53,10 @@ void init_memory()
        total_mem += p->length;
      }
 
-     global_memory_descriptor.e820.entries[i].address += p->address;
-     global_memory_descriptor.e820.entries[i].length += p->length;
+     global_memory_descriptor.e820.entries[i].address = p->address;
+     global_memory_descriptor.e820.entries[i].length = p->length;
      global_memory_descriptor.e820.entries[i].type = p->type;
-     global_memory_descriptor.e820.number_entries = i;
+     global_memory_descriptor.e820.number_entries = i + 1;
 
      p++;
      // normally, type is cannot greater than 4, if it is, program must meet junk data while running
@@ -97,5 +97,10 @@ void init_memory()
   }
 
   color_printk(ORANGE,BLACK,"OS Can Used Total 2M Pages:%#010x=%010d\n",total_pages, total_pages);
+
+  total_mem = 0;
+  total_mem = global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].address 
+    + global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].length;
+
 
 }
