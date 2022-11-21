@@ -125,7 +125,7 @@ void init_memory()
   // Create the storage space and allocation records for the page array. struct page is located after the bitmap, 
   // and the number of elements in the array is the number of pages that can be allocated in the physical address space, 
   // which is allocated and calculated in a similar way to the bitmap, except that the array is zeroed out for subsequent initialization procedures.
-  unsigned long pages_addr = (unsigned long)(global_memory_descriptor.bits_map + global_memory_descriptor.bits_size);
+  unsigned long pages_addr = (unsigned long)(global_memory_descriptor.bits_map + global_memory_descriptor.bits_length);
   global_memory_descriptor.pages = (struct Page*)PAGE_4K_UPPER_ALIGN(pages_addr);
   global_memory_descriptor.pages_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
 
@@ -134,4 +134,5 @@ void init_memory()
   memset(global_memory_descriptor.pages, 0x00, global_memory_descriptor.pages_length);
 
 
+  unsigned long zones_addr = (unsigned long)(global_memory_descriptor.pages + )
 }
