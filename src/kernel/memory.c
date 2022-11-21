@@ -113,24 +113,25 @@ void init_memory()
   // but also memory voids and ROM address space
   global_memory_descriptor.bits_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
   
-  static const unsigned long bits_per_byte = 8;
-  static const unsigned long long_type_bytes = sizeof(long);
-  static const unsigned long long_type_bits = long_type_bytes * bits_per_byte;
-  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + long_type_bits - 1) / bits_per_byte) & ( ~ (long_type_bytes - 1));
+  static const unsigned long BITS_PER_BYTE = 8;
+  static const unsigned long LONG_TYPE_BYTES = sizeof(long);
+  static const unsigned long LONG_TYPE_BITS = LONG_TYPE_BYTES * BITS_PER_BYTE;
+  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + LONG_TYPE_BITS - 1) / BITS_PER_BYTE) & ( ~ (LONG_TYPE_BYTES - 1));
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
   memset((unsigned long*)global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
 
+  // | bitmap | pages |
+  // Create the storage space and allocation records for the page array. struct page is located after the bitmap, 
+  // and the number of elements in the array is the number of pages that can be allocated in the physical address space, 
+  // which is allocated and calculated in a similar way to the bitmap, except that the array is zeroed out for subsequent initialization procedures.
+  unsigned long pages_addr = (unsigned long)(global_memory_descriptor.bits_map + global_memory_descriptor.bits_size);
+  global_memory_descriptor.pages = (struct Page*)PAGE_4K_UPPER_ALIGN(pages_addr);
+  global_memory_descriptor.pages_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
 
-
-
-
-
-
-
-
-
-
+  static const unsigned long PER_PAGE_BYTES = sizeof(struct Page);
+  global_memory_descriptor.pages_length =  (global_memory_descriptor.pages_size * PER_PAGE_BYTES + LONG_TYPE_BYTES - 1) & ( ~ (LONG_TYPE_BYTES - 1));
+  memset(global_memory_descriptor.pages, 0x00, global_memory_descriptor.pages_length);
 
 
 }
