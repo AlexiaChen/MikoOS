@@ -24,6 +24,14 @@ unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_byte
   return ((size + BYTES_SIZE - 1) & BYTES_MASK);
 }
 
+unsigned long BITS_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
+{
+  const unsigned long BYTES_SIZE = align_bytes;
+  const unsigned long BYTES_MASK = (~ (BYTES_SIZE - 1));
+  const unsigned long bytes_size = (size + align_bytes*8 - 1) / 8;
+  return (bytes_size & BYTES_MASK);
+}
+
 unsigned long VirtualToPhysicalAddr(unsigned long addr)
 {
   return addr - PAGE_OFFSET; 
@@ -123,7 +131,7 @@ void init_memory()
   static const unsigned long BITS_PER_BYTE = 8;
   static const unsigned long LONG_TYPE_BYTES = sizeof(long);
   static const unsigned long LONG_TYPE_BITS = LONG_TYPE_BYTES * BITS_PER_BYTE;
-  global_memory_descriptor.bits_length = ((global_memory_descriptor.bits_size + LONG_TYPE_BITS - 1) / BITS_PER_BYTE) & ( ~ (LONG_TYPE_BYTES - 1));
+  global_memory_descriptor.bits_length = BITS_NUM_UPPER_ALIGN(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
   memset((unsigned long*)global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
