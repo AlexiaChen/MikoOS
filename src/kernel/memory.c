@@ -133,6 +133,13 @@ void init_memory()
   global_memory_descriptor.pages_length =  (global_memory_descriptor.pages_size * PER_PAGE_BYTES + LONG_TYPE_BYTES - 1) & ( ~ (LONG_TYPE_BYTES - 1));
   memset(global_memory_descriptor.pages, 0x00, global_memory_descriptor.pages_length);
 
-
-  unsigned long zones_addr = (unsigned long)(global_memory_descriptor.pages + )
+  // | pages | zones |  
+  // Same as above, however, since the number of elements in the struct zone array cannot be calculated for the time being, 
+  // the value is assigned to 0 for the time being, and the zones_length is calculated according to the 5 struct zone structures for the time being
+  unsigned long zones_addr = (unsigned long)(global_memory_descriptor.pages + global_memory_descriptor.pages_length);
+  global_memory_descriptor.zones = (struct Zone*)PAGE_4K_UPPER_ALIGN(zones_addr);
+  global_memory_descriptor.zones_size = 0;
+  const unsigned long INIT_ZONES_NUMBER = 5;
+  static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
+  global_memory_descriptor.zones_length = (INIT_ZONES_NUMBER * PER_ZONE_BYTES + LONG_TYPE_BYTES - 1) & ( ~ (LONG_TYPE_BYTES - 1));
 }
