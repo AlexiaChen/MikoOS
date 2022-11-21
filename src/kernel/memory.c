@@ -17,6 +17,13 @@ unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr)
   return (addr >> PAGE_2M_SHIFT);
 }
 
+unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
+{
+  const unsigned long BYTES_SIZE = align_bytes;
+  const unsigned long BYTES_MASK = (~ (BYTES_SIZE - 1));
+  return ((size + BYTES_SIZE - 1) & BYTES_MASK);
+}
+
 unsigned long VirtualToPhysicalAddr(unsigned long addr)
 {
   return addr - PAGE_OFFSET; 
@@ -130,7 +137,7 @@ void init_memory()
   global_memory_descriptor.pages_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
 
   static const unsigned long PER_PAGE_BYTES = sizeof(struct Page);
-  global_memory_descriptor.pages_length =  (global_memory_descriptor.pages_size * PER_PAGE_BYTES + LONG_TYPE_BYTES - 1) & ( ~ (LONG_TYPE_BYTES - 1));
+  global_memory_descriptor.pages_length =  BYTES_NUM_UPPER_ALIGN(global_memory_descriptor.pages_size * PER_PAGE_BYTES, LONG_TYPE_BYTES);
   memset(global_memory_descriptor.pages, 0x00, global_memory_descriptor.pages_length);
 
   // | pages | zones |  
@@ -141,5 +148,5 @@ void init_memory()
   global_memory_descriptor.zones_size = 0;
   const unsigned long INIT_ZONES_NUMBER = 5;
   static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
-  global_memory_descriptor.zones_length = (INIT_ZONES_NUMBER * PER_ZONE_BYTES + LONG_TYPE_BYTES - 1) & ( ~ (LONG_TYPE_BYTES - 1));
+  global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
 }
