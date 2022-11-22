@@ -9,6 +9,7 @@ static void test_divid_zero(void);
 static void test_divid_zero(void)
 {
 	int i;
+	(void)i;
 	i = 1/0;
 }
 
@@ -16,6 +17,7 @@ static void test_page_fault(void);
 static void test_page_fault(void)
 {
 	int i;
+	(void)i;
 	i = *(int*)0xffff80000aa00000;
 }
 

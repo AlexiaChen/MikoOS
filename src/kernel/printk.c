@@ -410,9 +410,9 @@ int vsprintf(char * buf,const char *fmt, va_list args)
                 break;
 
             case 'x':
-
                 flags |= SMALL;
-
+                // https://stackoverflow.com/questions/55693007/error-this-statement-may-fall-through-werror-implicit-fallthrough
+                __attribute__ ((fallthrough));
             case 'X':
 
                 if(qualifier == 'l')
@@ -423,8 +423,8 @@ int vsprintf(char * buf,const char *fmt, va_list args)
 
             case 'd':
             case 'i':
-
                 flags |= SIGN;
+                __attribute__ ((fallthrough));
             case 'u':
 
                 if(qualifier == 'l')
@@ -521,7 +521,7 @@ Label_tab:
 		}
 		else
 		{
-			putchar(screen_buffer() , screen_width() , cursor_x() * char_width() , cursor_y() * char_height() , front_color , back_color , *offset(buffer, count));
+			putchar(screen_buffer() , screen_width() , cursor_x() * char_width() , cursor_y() * char_height() , front_color , back_color , *offset((unsigned char*)buffer, count));
 			cursor_next_column();
 		}
 

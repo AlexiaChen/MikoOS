@@ -25,11 +25,13 @@ error code format: 32-bit
 #define IDT_FLAG 0x02 // 1 << 1
 #define TI_FLAG  0x04 // 1 << 2
 
+static bool_t is_flag_set(unsigned long error_code, int flag);
 static bool_t is_flag_set(unsigned long error_code, int flag)
 {
     return ((error_code & flag) == 1) ? true : false;
 }
 
+static void do_print_trap_context(const char*name, unsigned long rsp, unsigned long error_code);
 static void do_print_trap_context(const char*name, unsigned long rsp, unsigned long error_code)
 {
     unsigned long *p = NULL;
@@ -38,68 +40,77 @@ static void do_print_trap_context(const char*name, unsigned long rsp, unsigned l
 	color_printk(RED,BLACK,"%s,ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\n", name, error_code , rsp , *p);
 }
 
-
-
+void do_divide_error(unsigned long rsp, unsigned long error_code);
 void do_divide_error(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_divide_error(0)", rsp, error_code);
     while(true);
 }
 
+void do_debug(unsigned long rsp, unsigned long error_code);
 void do_debug(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_debug(1)", rsp, error_code);
     while(true);
 }
 
+void do_nmi(unsigned long rsp, unsigned long error_code);
 void do_nmi(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_nmi(2)", rsp, error_code);
     while(true);
 }
 
+void do_int3(unsigned long rsp, unsigned long error_code);
 void do_int3(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_int3(3)", rsp, error_code);
     while(true);
 }
 
+void do_overflow(unsigned long rsp, unsigned long error_code);
 void do_overflow(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_overflow(4)", rsp, error_code);
     while(true);
 }
 
+void do_bounds(unsigned long rsp, unsigned long error_code);
 void do_bounds(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_bounds(5)", rsp, error_code);
     while(true);
 }
 
+void do_undefined_opcode(unsigned long rsp, unsigned long error_code);
 void do_undefined_opcode(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_undefined_opcode(6)", rsp, error_code);
     while(true);
 }
 
+void do_dev_not_available(unsigned long rsp, unsigned long error_code);
 void do_dev_not_available(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_dev_not_available(7)", rsp, error_code);
     while(true);
 }
 
+void do_double_fault(unsigned long rsp, unsigned long error_code);
 void do_double_fault(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_double_fault(8)", rsp, error_code);
     while(true);
 }
 
+void do_coprocessor_segment_overrun(unsigned long rsp, unsigned long error_code);
 void do_coprocessor_segment_overrun(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_coprocessor_segment_overrun(9)", rsp, error_code);
     while(true);
 }
 
+void do_invalid_TSS(unsigned long rsp, unsigned long error_code);
 void do_invalid_TSS(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_invalid_TSS(10)", rsp, error_code);
@@ -125,6 +136,7 @@ void do_invalid_TSS(unsigned long rsp, unsigned long error_code)
 	while(true);
 }
 
+void do_segment_not_present(unsigned long rsp, unsigned long error_code);
 void do_segment_not_present(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_segment_not_present(11)", rsp, error_code);
@@ -150,6 +162,7 @@ void do_segment_not_present(unsigned long rsp, unsigned long error_code)
 	while(true);
 }
 
+void do_stack_segment_fault(unsigned long rsp, unsigned long error_code);
 void do_stack_segment_fault(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_stack_segment_fault(12)", rsp, error_code);
@@ -175,6 +188,7 @@ void do_stack_segment_fault(unsigned long rsp, unsigned long error_code)
 	while(true);
 }
 
+void do_general_protection(unsigned long rsp, unsigned long error_code);
 void do_general_protection(unsigned long rsp, unsigned long error_code)
 {
 	do_print_trap_context("do_general_protection(13)", rsp, error_code);
@@ -222,11 +236,13 @@ page error code format: 32-bit
 #define RSVD_FLAG 0x08 // 1 << 3
 #define ID_FLAG 0x10 // 1 << 4
 
+static bool_t is_page_flag_set(unsigned long error_code, int flag);
 static bool_t is_page_flag_set(unsigned long error_code, int flag)
 {
   return ((error_code & flag) == 1) ? true : false;
 }
 
+void do_page_fault(unsigned long rsp, unsigned long error_code);
 void do_page_fault(unsigned long rsp, unsigned long error_code)
 {
 	unsigned long *p = NULL;
@@ -237,8 +253,8 @@ void do_page_fault(unsigned long rsp, unsigned long error_code)
 	p = (unsigned long *)(rsp + 0x98);
 	color_printk(RED,BLACK,"do_page_fault(14),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\n",error_code , rsp , *p);
 
-  if(!is_page_flag_set(error_code, P_FLAG))
-	color_printk(RED,BLACK,"Page Not-Present,\t");
+  	if(!is_page_flag_set(error_code, P_FLAG))
+		color_printk(RED,BLACK,"Page Not-Present,\t");
 
 	if(is_page_flag_set(error_code, WR_FLAG))
 		color_printk(RED,BLACK,"Write Cause Fault,\t");
@@ -263,36 +279,42 @@ void do_page_fault(unsigned long rsp, unsigned long error_code)
   while(true);
 }
 
+void do_x87_FPU_error(unsigned long rsp, unsigned long error_code);
 void do_x87_FPU_error(unsigned long rsp, unsigned long error_code)
 {
   do_print_trap_context("do_x87_FPU_error(16)", rsp, error_code);
 	while(true);
 }
 
+void do_alignment_check(unsigned long rsp, unsigned long error_code);
 void do_alignment_check(unsigned long rsp, unsigned long error_code)
 {
   do_print_trap_context("do_alignment_check(17)", rsp, error_code);
 	while(true);
 }
 
+void do_machine_check(unsigned long rsp,unsigned long error_code);
 void do_machine_check(unsigned long rsp,unsigned long error_code)
 {
   do_print_trap_context("do_machine_check(18)", rsp, error_code);
 	while(true);
 }
 
+void do_SIMD_exception(unsigned long rsp,unsigned long error_code);
 void do_SIMD_exception(unsigned long rsp,unsigned long error_code)
 {
   do_print_trap_context("do_SIMD_exception(19)", rsp, error_code);
 	while(true);
 }
 
+void do_virtualization_exception(unsigned long rsp,unsigned long error_code);
 void do_virtualization_exception(unsigned long rsp,unsigned long error_code)
 {
   do_print_trap_context("do_virtualization_exception(20)", rsp, error_code);
 	while(true);
 }
 
+void sys_vector_handler_init(void);
 void sys_vector_handler_init()
 {
   set_trap_gate(0,1,divide_error);

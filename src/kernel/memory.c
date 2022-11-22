@@ -17,6 +17,7 @@ unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr)
   return (addr >> PAGE_2M_SHIFT);
 }
 
+unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes);
 unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
 {
   const unsigned long BYTES_SIZE = align_bytes;
@@ -24,11 +25,12 @@ unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_byte
   return ((size + BYTES_SIZE - 1) & BYTES_MASK);
 }
 
+unsigned long BITS_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes);
 unsigned long BITS_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
 {
   const unsigned long BYTES_SIZE = align_bytes;
   const unsigned long BYTES_MASK = (~ (BYTES_SIZE - 1));
-  const unsigned long bytes_size = (size + align_bytes*8 - 1) / 8;
+  const unsigned long bytes_size = (size + BYTES_SIZE*8 - 1) / 8;
   return (bytes_size & BYTES_MASK);
 }
 
@@ -57,7 +59,6 @@ void init_memory()
   for(int i = 0; i < E820_MAX_ENTRIES; ++i)
   {
      color_printk(ORANGE,BLACK,"Address:%#018lx\tLength:%#018lx\tType:%#010x\n",p->address, p->length, p->type);
-     unsigned long temp = 0;
      // type = 1 is useable physical memory space
      // the usable physical memory space capacity is combined of two parts:
      // part one: capacity is 0x9f000
@@ -96,7 +97,7 @@ void init_memory()
   // and the number of available physical pages is calculated and the total number of 
   // available physical pages is printed on the screen.
   unsigned long total_pages = 0;
-  for(int i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
+  for(unsigned long i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
   {
      unsigned long start, end;
      // usable physical memory space
@@ -127,9 +128,7 @@ void init_memory()
   // but also memory voids and ROM address space
   global_memory_descriptor.bits_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
   
-  static const unsigned long BITS_PER_BYTE = 8;
   static const unsigned long LONG_TYPE_BYTES = sizeof(long);
-  static const unsigned long LONG_TYPE_BITS = LONG_TYPE_BYTES * BITS_PER_BYTE;
   global_memory_descriptor.bits_length = BITS_NUM_UPPER_ALIGN(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
