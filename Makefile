@@ -1,3 +1,11 @@
+# https://stackoverflow.com/questions/154630/recommended-gcc-warning-options-for-c
+# https://stackoverflow.com/questions/3375697/what-are-the-useful-gcc-flags-for-c
+options := -std=c99 -static -mcmodel=large -fno-builtin -m64 \
+-Wall -Wextra -Wshadow -Wpointer-arith -Wcast-qual  \
+-Wstrict-prototypes -Wmissing-prototypes -Wfloat-equal \
+-Wundef -Waggregate-return -Wswitch-default -Wswitch-enum \
+-Wunreachable-code -Winit-self
+
 build: copyimage
 	echo "Miko OS Image build completed."
 
@@ -31,19 +39,19 @@ bin/system:	bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o
 	ld -b elf64-x86-64 -z muldefs -o bin/system bin/head.o bin/entry.o bin/main.o bin/printk.o bin/trap.o bin/gate.o bin/memory.o -T src/kernel/kernel.lds
 
 bin/main.o:	src/kernel/main.c src/kernel/util.h
-	gcc  -static -mcmodel=large -fno-builtin -m64 -c src/kernel/main.c -fno-stack-protector -o bin/main.o
+	gcc  $(options) -c src/kernel/main.c -fno-stack-protector -o bin/main.o
 
 bin/trap.o: src/kernel/trap.c src/kernel/util.h
-	gcc  -static -mcmodel=large -fno-builtin -m64 -c src/kernel/trap.c -fno-stack-protector -o bin/trap.o
+	gcc  $(options) -c src/kernel/trap.c -fno-stack-protector -o bin/trap.o
 
 bin/gate.o: src/kernel/gate.c src/kernel/util.h
-	gcc  -static -mcmodel=large -fno-builtin -m64 -c src/kernel/gate.c -fno-stack-protector -o bin/gate.o
+	gcc  $(options) -m64 -c src/kernel/gate.c -fno-stack-protector -o bin/gate.o
 
 bin/printk.o: src/kernel/printk.c src/kernel/util.h
-	gcc -static  -mcmodel=large -fno-builtin -m64 -c src/kernel/printk.c -fno-stack-protector -o bin/printk.o
+	gcc $(options) -c src/kernel/printk.c -fno-stack-protector -o bin/printk.o
 
 bin/memory.o: src/kernel/memory.c src/kernel/util.h
-	gcc -static -mcmodel=large -fno-builtin -m64 -c src/kernel/memory.c -fno-stack-protector -o bin/memory.o
+	gcc $(options) -c src/kernel/memory.c -fno-stack-protector -o bin/memory.o
 
 bin/entry.o: src/kernel/entry.S
 	gcc -E  src/kernel/entry.S > bin/entry.s
@@ -52,6 +60,7 @@ bin/entry.o: src/kernel/entry.S
 bin/head.o:	src/kernel/head.S
 	gcc -E  src/kernel/head.S > bin/head.s
 	as --64 -o bin/head.o bin/head.s
+	
 
 clean:
 	rm -rf bin/*
