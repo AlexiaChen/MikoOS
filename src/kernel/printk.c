@@ -17,96 +17,113 @@ static int64_t FRAME_BUFFER_MAPPED_ADDRESS = 0xffff800000a00000;
 // 24~31 bits reserved
 static int ONE_PIXEL_32_BITS_WIDTH = 4; // 4 bytes
 
+static unsigned int* screen_buffer(void);
 static unsigned int* screen_buffer()
 {
     return screen_position.frame_buffer_address;
 }
 
+static int screen_width(void);
 static int screen_width()
 {
     return screen_position.x_resolution;
 }
 
+static int screen_height(void);
 static int screen_height()
 {
     return screen_position.x_resolution;
 }
 
+static int char_width(void);
 static int char_width()
 {
     return screen_position.x_char_size;
 }
 
+static int char_height(void);
 static int char_height()
 {
     return screen_position.y_char_size;
 }
 
+static void cursor_next_line(void);
 static void cursor_next_line()
 {
     screen_position.y_position++; // next row
 	screen_position.x_position = 0; // column begin
 }
 
+static void cursor_prev_column(void);
 static void cursor_prev_column()
 {
     screen_position.x_position--; // next column
 }
 
+static void cursor_next_column(void);
 static void cursor_next_column()
 {
     screen_position.x_position++; // next column
 }
 
+static void move_cursor_position(int x, int y);
 static void move_cursor_position(int x, int y)
 {
     screen_position.x_position = x;
     screen_position.y_position = y;
 }
 
+static int cursor_x(void);
 static int cursor_x()
 {
     return screen_position.x_position;
 }
 
+static int cursor_y(void);
 static int cursor_y()
 {
     return screen_position.y_position;
 }
 
-
+static bool_t is_cursor_left_out_of_bound(void);
 static bool_t is_cursor_left_out_of_bound()
 {
     return cursor_x() < 0 ? true : false;
 }
 
+static bool_t is_cursor_upper_out_of_bound(void);
 static bool_t is_cursor_upper_out_of_bound()
 {
     return cursor_y() < 0 ? true : false;
 }
 
+static bool_t is_cursor_right_out_of_bound(void);
 static bool_t is_cursor_right_out_of_bound()
 {
     return (cursor_x() >= (screen_width() / char_width())) ? true : false;
 }
 
+static bool_t is_cursor_down_out_of_bound(void);
 static bool_t is_cursor_down_out_of_bound()
 {
     return (cursor_y() >= (screen_height() / char_height())) ? true : false;
 }
 
+static void set_screen_size(int width, int height);
 static void set_screen_size(int width, int height)
 {
     screen_position.x_resolution = width;
 	screen_position.y_resolution = height;
 }
 
+static void set_char_size(int width, int height);
 static void set_char_size(int width, int height)
 {
-    screen_position.x_char_size = ONE_CHAR_WIDTH;
-	screen_position.y_char_size = ONE_CHAR_HEIGHT;
+    screen_position.x_char_size = width;
+	screen_position.y_char_size = height;
 }
 
+static void set_screen_buffer(unsigned int* buffer_address, unsigned long length);
 static void set_screen_buffer(unsigned int* buffer_address, unsigned long length)
 {
     screen_position.frame_buffer_address = buffer_address;
@@ -187,7 +204,7 @@ int skip_atoi(const char **s)
 
 /*
 */
-
+static char * itoa(char * str, long num, int base, int size, int precision,	int type);
 static char * itoa(char * str, long num, int base, int size, int precision,	int type)
 {
 	char c,sign,tmp[50];
@@ -207,8 +224,10 @@ static char * itoa(char * str, long num, int base, int size, int precision,	int 
 		sign=(type & PLUS) ? '+' : ((type & SPACE) ? ' ' : 0);
 	if (sign) size--;
 	if (type & SPECIAL)
-		if (base == 16) size -= 2;
+    {
+        if (base == 16) size -= 2;
 		else if (base == 8) size--;
+    }
 	i = 0;
 	if (num == 0)
 		tmp[i++]='0';
@@ -222,16 +241,20 @@ static char * itoa(char * str, long num, int base, int size, int precision,	int 
 	if (sign)
 		*str++ = sign;
 	if (type & SPECIAL)
-		if (base == 8)
+    {
+        if (base == 8)
 			*str++ = '0';
 		else if (base==16) 
 		{
 			*str++ = '0';
 			*str++ = digits[33];
 		}
+    }
 	if (!(type & LEFT))
-		while(size-- > 0)
+    {
+        while(size-- > 0)
 			*str++ = c;
+    }
 
 	while(i < precision--)
 		*str++ = '0';
@@ -466,11 +489,11 @@ int color_printk(unsigned int front_color,unsigned int back_color,const char * f
 			count--;
 			goto Label_tab;
 		}
-		if(*offset(buffer, count) == '\n')
+		if(*offset((unsigned char*)buffer, count) == '\n')
 		{
 			cursor_next_line();
 		}
-		else if(*offset(buffer, count) == '\b')
+		else if(*offset((unsigned char*)buffer, count) == '\b')
 		{
 			cursor_prev_column();
             // cursor position out of bound
@@ -487,7 +510,7 @@ int color_printk(unsigned int front_color,unsigned int back_color,const char * f
 			}	
 			putchar(screen_buffer() , screen_width() , cursor_x() * char_width() , cursor_y() * char_height() , front_color , back_color , ' ');	
 		}
-		else if(*offset(buffer, count) == '\t')
+		else if(*offset((unsigned char*)buffer, count) == '\t')
 		{
 			line = ((cursor_x() + TAB_HOLD_CHARS) & ~(TAB_HOLD_CHARS - 1)) - cursor_x();
 

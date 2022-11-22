@@ -5,19 +5,21 @@
 #include "memory.h"
 
 // for test divided by zero fault
-static void test_divid_zero()
+static void test_divid_zero(void);
+static void test_divid_zero(void)
 {
 	int i;
 	i = 1/0;
 }
 
-static void test_page_fault()
+static void test_page_fault(void);
+static void test_page_fault(void)
 {
 	int i;
 	i = *(int*)0xffff80000aa00000;
 }
 
-struct GlobalMemoryDescriptor global_memory_descriptor = {{0}, 0};
+struct GlobalMemoryDescriptor global_memory_descriptor = {};
 
 // symbols defined in kernel linker script(kernel.lds)
 extern char _text;
@@ -25,6 +27,7 @@ extern char _endtext;
 extern char _enddata;
 extern char _end;
 
+void Start_Kernel(void);
 void Start_Kernel(void)
 {
 	init_screen(1440, 900);
@@ -43,10 +46,12 @@ void Start_Kernel(void)
 
 	color_printk(RED,BLACK,"init memory\n");
     init_memory();
+	bool_t enable_tests = false;
+	if(enable_tests)
+	{
+		test_divid_zero();
+		test_page_fault();
+	}
 	
-	//test_divid_zero();
-	//test_page_fault();
-
-
 	while(true);
 }

@@ -20,6 +20,7 @@
 
 typedef int bool_t;
 
+bool_t is_digit(char c);
 bool_t is_digit(char c)
 {
 	return (c >= '0' && c <= '9') ? true : false;
@@ -32,6 +33,7 @@ int __res; \
 __asm__("divq %%rcx":"=a" (num),"=d" (__res):"0" (num),"1" (0),"c" (base)); \
 __res; })
 
+unsigned char* offset(unsigned char* buf, int count);
 unsigned char* offset(unsigned char* buf, int count)
 {
     return buf + count;
@@ -43,12 +45,14 @@ struct List
 	struct List * next;
 };
 
+void list_init(struct List * list);
 void list_init(struct List * list)
 {
 	list->prev = list;
 	list->next = list;
 }
 
+void list_add_to_behind(struct List * entry,struct List * new);
 void list_add_to_behind(struct List * entry,struct List * new)	////add to entry behind
 {
 	new->next = entry->next;
@@ -56,6 +60,8 @@ void list_add_to_behind(struct List * entry,struct List * new)	////add to entry 
 	new->next->prev = new;
 	entry->next = new;
 }
+
+void list_add_to_before(struct List * entry,struct List * new);
 void list_add_to_before(struct List * entry,struct List * new)	////add to entry behind
 {
 	new->next = entry;
@@ -64,12 +70,14 @@ void list_add_to_before(struct List * entry,struct List * new)	////add to entry 
 	entry->prev = new;
 }
 
+void list_del(struct List * entry);
 void list_del(struct List * entry)
 {
 	entry->next->prev = entry->prev;
 	entry->prev->next = entry->next;
 }
 
+long list_is_empty(struct List * entry);
 long list_is_empty(struct List * entry)
 {
 	if(entry == entry->next && entry->prev == entry)
@@ -78,6 +86,7 @@ long list_is_empty(struct List * entry)
 		return 0;
 }
 
+struct List * list_prev(struct List * entry);
 struct List * list_prev(struct List * entry)
 {
 	if(entry->prev != NULL)
@@ -86,6 +95,7 @@ struct List * list_prev(struct List * entry)
 		return NULL;
 }
 
+struct List * list_next(struct List * entry);
 struct List * list_next(struct List * entry)
 {
 	if(entry->next != NULL)
@@ -97,7 +107,7 @@ struct List * list_next(struct List * entry)
 /*
 		From => To memory copy Num bytes
 */
-
+void * memcpy(void *From,void * To,long Num);
 void * memcpy(void *From,void * To,long Num)
 {
 	int d0,d1,d2;
@@ -126,7 +136,7 @@ void * memcpy(void *From,void * To,long Num)
 		FirstPart > SecondPart		=>	 1
 		FirstPart < SecondPart		=>	-1
 */
-
+int memcmp(void * FirstPart,void * SecondPart,long Count);
 int memcmp(void * FirstPart,void * SecondPart,long Count)
 {
 	register int __res;
@@ -149,7 +159,7 @@ int memcmp(void * FirstPart,void * SecondPart,long Count)
 /*
 		set memory at Address with C ,number is Count
 */
-
+void * memset(void * Address,unsigned char C,long Count);
 void * memset(void * Address,unsigned char C,long Count)
 {
 	int d0,d1;
@@ -177,7 +187,7 @@ void * memset(void * Address,unsigned char C,long Count)
 /*
 		string copy
 */
-
+char * strcpy(char * Dest,char * Src);
 char * strcpy(char * Dest,char * Src)
 {
 	__asm__	__volatile__	(	"cld	\n\t"
@@ -197,7 +207,7 @@ char * strcpy(char * Dest,char * Src)
 /*
 		string copy number bytes
 */
-
+char * strncpy(char * Dest,char * Src,long Count);
 char * strncpy(char * Dest,char * Src,long Count)
 {
 	__asm__	__volatile__	(	"cld	\n\t"
@@ -221,7 +231,7 @@ char * strncpy(char * Dest,char * Src,long Count)
 /*
 		string cat Dest + Src
 */
-
+char * strcat(char * Dest,char * Src);
 char * strcat(char * Dest,char * Src)
 {
 	__asm__	__volatile__	(	"cld	\n\t"
@@ -246,7 +256,7 @@ char * strcat(char * Dest,char * Src)
 		FirstPart > SecondPart =>  1
 		FirstPart < SecondPart => -1
 */
-
+int strcmp(char * FirstPart,char * SecondPart);
 int strcmp(char * FirstPart,char * SecondPart)
 {
 	register int __res;
@@ -277,7 +287,7 @@ int strcmp(char * FirstPart,char * SecondPart)
 		FirstPart > SecondPart =>  1
 		FirstPart < SecondPart => -1
 */
-
+int strncmp(char * FirstPart,char * SecondPart,long Count);
 int strncmp(char * FirstPart,char * SecondPart,long Count)
 {	
 	register int __res;
@@ -308,7 +318,7 @@ int strncmp(char * FirstPart,char * SecondPart,long Count)
 /*
 
 */
-
+int strlen(char * String);
 int strlen(char * String)
 {
 	register int __res;
@@ -327,7 +337,7 @@ int strlen(char * String)
 /*
 
 */
-
+unsigned long bit_set(unsigned long * addr,unsigned long nr);
 unsigned long bit_set(unsigned long * addr,unsigned long nr)
 {
 	return *addr | (1UL << nr);
@@ -336,7 +346,7 @@ unsigned long bit_set(unsigned long * addr,unsigned long nr)
 /*
 
 */
-
+unsigned long bit_get(unsigned long * addr,unsigned long nr);
 unsigned long bit_get(unsigned long * addr,unsigned long nr)
 {
 	return	*addr & (1UL << nr);
@@ -345,7 +355,7 @@ unsigned long bit_get(unsigned long * addr,unsigned long nr)
 /*
 
 */
-
+unsigned long bit_clean(unsigned long * addr,unsigned long nr);
 unsigned long bit_clean(unsigned long * addr,unsigned long nr)
 {
 	return	*addr & (~(1UL << nr));
@@ -354,7 +364,7 @@ unsigned long bit_clean(unsigned long * addr,unsigned long nr)
 /*
 
 */
-
+unsigned char io_in8(unsigned short port);
 unsigned char io_in8(unsigned short port)
 {
 	unsigned char ret = 0;
@@ -369,7 +379,7 @@ unsigned char io_in8(unsigned short port)
 /*
 
 */
-
+unsigned int io_in32(unsigned short port);
 unsigned int io_in32(unsigned short port)
 {
 	unsigned int ret = 0;
@@ -384,7 +394,7 @@ unsigned int io_in32(unsigned short port)
 /*
 
 */
-
+void io_out8(unsigned short port,unsigned char value);
 void io_out8(unsigned short port,unsigned char value)
 {
 	__asm__ __volatile__(	"outb	%0,	%%dx	\n\t"
@@ -397,7 +407,7 @@ void io_out8(unsigned short port,unsigned char value)
 /*
 
 */
-
+void io_out32(unsigned short port,unsigned int value);
 void io_out32(unsigned short port,unsigned int value)
 {
 	__asm__ __volatile__(	"outl	%0,	%%dx	\n\t"

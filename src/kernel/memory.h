@@ -149,6 +149,6 @@ struct Zone
 
 extern struct GlobalMemoryDescriptor global_memory_descriptor;
 
-void init_memory();
+void init_memory(void);
 
 #endif

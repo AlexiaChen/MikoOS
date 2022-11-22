@@ -51,9 +51,9 @@ struct position
 	unsigned long frame_buffer_length;
 }screen_position;
 
-void init_screen();
+void init_screen(int width, int height);
 
-void test_color();
+void test_color(int width, int height);
 
 void putchar(unsigned int * frame_buffer,int x_size,int x,int y,unsigned int front_color,unsigned int back_color,unsigned char font);
 
