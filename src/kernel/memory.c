@@ -122,7 +122,7 @@ void init_memory()
 
   // bits map pointer, pointer to end address of kernel
   // This is done to preserve a small section of isolated space to prevent misuse from corrupting data in other spaces (this is why  upper alginment needed)
-  global_memory_descriptor.bits_map = PAGE_4K_UPPER_ALIGN(global_memory_descriptor.end_brk);
+  global_memory_descriptor.bits_map = (unsigned long*)PAGE_4K_UPPER_ALIGN(global_memory_descriptor.end_brk);
   // number of avaible 2M pages
   // This physical address space avaible pages that include not only available physical memory, 
   // but also memory voids and ROM address space
@@ -134,7 +134,7 @@ void init_memory()
   global_memory_descriptor.bits_length = BITS_NUM_UPPER_ALIGN(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
-  memset((unsigned long*)global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
+  memset(global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
 
   // | bitmap | pages |
   // Create the storage space and allocation records for the page array. struct page is located after the bitmap, 
