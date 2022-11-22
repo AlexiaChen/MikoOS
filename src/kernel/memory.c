@@ -48,14 +48,13 @@ unsigned long* PhysicalToVirtualAddr(unsigned long addr)
 // which is the target address for the program to operate
 void init_memory()
 {
-  int i, j;
   unsigned long total_mem = 0;
   struct E820Entry *p = NULL;
   color_printk(BLUE,BLACK,"Display Physics Address MAP,Type(1:RAM,2:ROM or Reserved,3:ACPI Reclaim Memory,4:ACPI NVS Memory,Others:Undefine)\n");
 
   p = (struct E820Entry*)0xffff800000007e00;
 
-  for(i = 0; i < E820_MAX_ENTRIES; ++i)
+  for(int i = 0; i < E820_MAX_ENTRIES; ++i)
   {
      color_printk(ORANGE,BLACK,"Address:%#018lx\tLength:%#018lx\tType:%#010x\n",p->address, p->length, p->type);
      unsigned long temp = 0;
@@ -97,7 +96,7 @@ void init_memory()
   // and the number of available physical pages is calculated and the total number of 
   // available physical pages is printed on the screen.
   unsigned long total_pages = 0;
-  for(i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
+  for(int i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
   {
      unsigned long start, end;
      // usable physical memory space
@@ -157,4 +156,5 @@ void init_memory()
   const unsigned long INIT_ZONES_NUMBER = 5;
   static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
   global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
+
 }
