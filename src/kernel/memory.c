@@ -2,6 +2,15 @@
 #include "printk.h"
 #include "util.h"
 
+// >>> PAGE_4BYTES_SHIFT = 2
+// >>> PAGE_4BYTES_SIZE = (1 << PAGE_4BYTES_SHIFT)
+// >>> PAGE_4BYTES_MASK = (~ (PAGE_4BYTES_SIZE - 1))
+// >>> (7 + PAGE_4BYTES_SIZE - 1) & PAGE_4BYTES_MASK
+// 8
+// >>> (8 + PAGE_4BYTES_SIZE - 1) & PAGE_4BYTES_MASK
+// 8
+// >>> (9 + PAGE_4BYTES_SIZE - 1) & PAGE_4BYTES_MASK
+// 12
 unsigned long PAGE_2M_UPPER_ALIGN(unsigned long addr) 
 {
   return ((addr + PAGE_2M_SIZE - 1) & PAGE_2M_MASK);
@@ -12,9 +21,32 @@ unsigned long PAGE_4K_UPPER_ALIGN(unsigned long addr)
   return ((addr + PAGE_4K_SIZE - 1) & PAGE_4K_MASK);
 }
 
-unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr) 
+// PAGE_4BYTES_SHIFT = 2
+// >>> 7 >> PAGE_4BYTES_SHIFT
+// 1
+// >>> 9 >> PAGE_4BYTES_SHIFT
+// 2
+// >>> 7 >> PAGE_4BYTES_SHIFT
+// 1
+// >>> 1 << PAGE_4BYTES_SHIFT
+// 4
+// >>> 9 >> PAGE_4BYTES_SHIFT
+// 2
+// >>> 2 << PAGE_4BYTES_SHIFT
+// 8
+unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr)
 {
-  return (addr >> PAGE_2M_SHIFT);
+  return ((addr >> PAGE_2M_SHIFT) << PAGE_2M_SHIFT);
+}
+
+unsigned long BYTES_NUM_TO_PAGE_2M_NUM(unsigned long bytes_num) 
+{
+  return (bytes_num >> PAGE_2M_SHIFT);
+}
+
+unsigned long PAGE_2M_NUM_TO_BYTES_NUM(unsigned long pages_num) 
+{
+  return (pages_num << PAGE_2M_SHIFT);
 }
 
 unsigned long BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes);
@@ -104,10 +136,10 @@ void init_memory()
      if(global_memory_descriptor.e820.entries[i].type == E820_RAM)
      {
        start = PAGE_2M_UPPER_ALIGN(global_memory_descriptor.e820.entries[i].address);
-       end = PAGE_2M_LOWER_ALIGN(global_memory_descriptor.e820.entries[i].address + global_memory_descriptor.e820.entries[i].length) << PAGE_2M_SHIFT;
+       end = PAGE_2M_LOWER_ALIGN(global_memory_descriptor.e820.entries[i].address + global_memory_descriptor.e820.entries[i].length);
       if(end > start)
       {
-        total_pages += PAGE_2M_LOWER_ALIGN(end - start);
+        total_pages += BYTES_NUM_TO_PAGE_2M_NUM(end - start);
       }      
      }
   }
@@ -126,7 +158,7 @@ void init_memory()
   // number of avaible 2M pages
   // This physical address space avaible pages that include not only available physical memory, 
   // but also memory voids and ROM address space
-  global_memory_descriptor.bits_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
+  global_memory_descriptor.bits_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
   
   static const unsigned long LONG_TYPE_BYTES = sizeof(long);
   global_memory_descriptor.bits_length = BITS_NUM_UPPER_ALIGN(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
@@ -140,7 +172,7 @@ void init_memory()
   // which is allocated and calculated in a similar way to the bitmap, except that the array is zeroed out for subsequent initialization procedures.
   unsigned long pages_addr = (unsigned long)(global_memory_descriptor.bits_map + global_memory_descriptor.bits_length);
   global_memory_descriptor.pages = (struct Page*)PAGE_4K_UPPER_ALIGN(pages_addr);
-  global_memory_descriptor.pages_size = PAGE_2M_LOWER_ALIGN(end_addr_of_physical_space);
+  global_memory_descriptor.pages_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
 
   static const unsigned long PER_PAGE_BYTES = sizeof(struct Page);
   global_memory_descriptor.pages_length =  BYTES_NUM_UPPER_ALIGN(global_memory_descriptor.pages_size * PER_PAGE_BYTES, LONG_TYPE_BYTES);
@@ -155,5 +187,28 @@ void init_memory()
   const unsigned long INIT_ZONES_NUMBER = 5;
   static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
   global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
+
+  for(unsigned long i = 0; i < global_memory_descriptor.e820.number_entries; ++i)
+  {
+     // usable physical memory space
+     if(global_memory_descriptor.e820.entries[i].type == E820_RAM)
+     {
+        unsigned long start = PAGE_2M_UPPER_ALIGN(global_memory_descriptor.e820.entries[i].address);
+        unsigned long end = PAGE_2M_LOWER_ALIGN(global_memory_descriptor.e820.entries[i].address + global_memory_descriptor.e820.entries[i].length);
+        if(end > start)
+        {
+           struct Zone* new_zone = global_memory_descriptor.zones + global_memory_descriptor.zones_size;
+           global_memory_descriptor.zones_size++;
+           
+           new_zone->start_address = start;
+           new_zone->end_address = end;
+           new_zone->length = end - start;
+           
+           new_zone->page_using_count = 0;
+           new_zone->page_free_count = BYTES_NUM_TO_PAGE_2M_NUM(new_zone->length);
+           struct Page* page;
+        }
+     }
+  }
 
 }
