@@ -38,6 +38,8 @@ unsigned long PAGE_4K_UPPER_ALIGN(unsigned long addr);
 // The function PAGE_2M_LOWER_ALIGN(addr) is used to set the parameter addr to the lower boundary of the 2 MB page pair
 unsigned long PAGE_2M_LOWER_ALIGN(unsigned long addr);
 unsigned long BYTES_NUM_TO_PAGE_2M_NUM(unsigned long bytes_num);
+unsigned long ADDR_TO_PAGE_2M_NORMAL_INDEX(unsigned long addr);
+unsigned long ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(unsigned long addr);
 unsigned long PAGE_2M_NUM_TO_BYTES_NUM(unsigned long pages_num);
 
 // The inline function VirtualToPhysicalAddr(addr) is used to convert the kernel level virtual address to physical address, 
@@ -137,7 +139,7 @@ struct Zone
   unsigned long  attribute; // zone attribute （Describes whether the current zone supports DMA, whether the pages are mapped through the page table, and other information.）
   unsigned long  length; //  length of the zone align by page size
 
-  struct GlobalE820Table* e820_table; // pointer to the global e820 table
+  struct GlobalMemoryDescriptor* gmt; // pointer to the global memory table
 
   unsigned long page_using_count; // number of pages using in the zone
   unsigned long page_free_count; // number of pages free in the zone

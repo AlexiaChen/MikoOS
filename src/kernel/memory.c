@@ -44,6 +44,20 @@ unsigned long BYTES_NUM_TO_PAGE_2M_NUM(unsigned long bytes_num)
   return (bytes_num >> PAGE_2M_SHIFT);
 }
 
+// althrough the two functions are logically same,  but their semantic not same. 
+// page index is from 0 to N
+unsigned long ADDR_TO_PAGE_2M_NORMAL_INDEX(unsigned long addr)
+{
+  return BYTES_NUM_TO_PAGE_2M_NUM(addr);
+}
+
+unsigned long ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(unsigned long addr)
+{
+  // 2^3 * 2^3 = 8 * 8 = 64 bits
+  static const unsigned int BITS_64_SHIFT = 6;
+  return (ADDR_TO_PAGE_2M_NORMAL_INDEX(addr) >> BITS_64_SHIFT);
+}
+
 unsigned long PAGE_2M_NUM_TO_BYTES_NUM(unsigned long pages_num) 
 {
   return (pages_num << PAGE_2M_SHIFT);
@@ -147,7 +161,7 @@ void init_memory()
   color_printk(ORANGE,BLACK,"OS Can Used Total 2M Pages:%#010x=%010d\n",total_pages, total_pages);
 
   
-  // |  -----  physical memory space for pages (ROM or void memory pages etc)  -----  |   -- isolated space --    | bitmap 
+  // |  -----  physical memory space for pages (ROM or void memory pages etc)  -----  |   -- isolated space --    | bitmaps (bitmap0, bitmap1,... bitmapN)
   unsigned long end_addr_of_physical_space = 
     global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].address 
     + global_memory_descriptor.e820.entries[global_memory_descriptor.e820.number_entries - 1].length;
@@ -165,6 +179,7 @@ void init_memory()
   // The entire bits_map space is set all the way to mark non-memory pages (memory voids and ROM space) as used, 
   // and then the available physical memory pages in the map bitmap are programmatically reset later.
   memset(global_memory_descriptor.bits_map, 0xff, global_memory_descriptor.bits_length);
+  color_printk(ORANGE,BLACK,"bitsmap bytes length : %d\n", global_memory_descriptor.bits_length);
 
   // | bitmap | pages |
   // Create the storage space and allocation records for the page array. struct page is located after the bitmap, 
@@ -206,7 +221,32 @@ void init_memory()
            
            new_zone->page_using_count = 0;
            new_zone->page_free_count = BYTES_NUM_TO_PAGE_2M_NUM(new_zone->length);
-           struct Page* page;
+           new_zone->total_pages_ref_count = 0;
+
+           new_zone->attribute = 0;
+           new_zone->gmt = &global_memory_descriptor;
+
+           new_zone->number_pages = BYTES_NUM_TO_PAGE_2M_NUM(new_zone->length);
+           new_zone->pages = global_memory_descriptor.pages + BYTES_NUM_TO_PAGE_2M_NUM(start);
+
+           struct Page* page_index = new_zone->pages;
+           for(unsigned long j = 0; j < new_zone->number_pages; j++, page_index++)
+           {
+              page_index->zone = new_zone;
+              page_index->physical_address = start + PAGE_2M_SIZE * j;
+              page_index->attribute = 0;
+              page_index->reference_count = 0;
+              page_index->create_time = 0;
+              
+              // sizeof(*bitmap) = 8 bytes = 64 bits
+              // *bitmap inital value is : 11111...11111 (64-bit), 111111....1111(64bit), .... N
+              // bitmaps are composed of a array of bitmap  *(bitmap + N)  = bitmaps[32]
+              // Converts the physical address represented by the current struct page structure to the corresponding bit in bits_map. 
+              // Since the bits_map has previously been set to all bit1, then at this moment the corresponding bit of the available physical page is set to 0 (because it is an iso-or operation), 
+              // marking the corresponding available physical page as unused
+              unsigned long target_bitmap_value = *(global_memory_descriptor.bits_map + ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(page_index->physical_address));
+              target_bitmap_value ^= 1UL << ADDR_TO_PAGE_2M_NORMAL_INDEX(page_index-> physical_address) % 64;
+           }
         }
      }
   }
