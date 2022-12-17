@@ -43,6 +43,16 @@ PAGE_2M_LOWER_ALIGN(unsigned long addr)
     return ((addr >> PAGE_2M_SHIFT) << PAGE_2M_SHIFT);
 }
 
+// >>> 23 >> 21
+// 0
+// >>> 1024 * 1024 >> 21
+// 0
+// >>> 1024 * 1024* 2 + 12 >> 21
+// 1
+// >>> 1024 * 1024* 2  >> 21
+// 1
+// >>> 1024 * 1024* 2 + 2 >> 21
+// 1
 unsigned long
 BYTES_NUM_TO_PAGE_2M_NUM(unsigned long bytes_num)
 {
@@ -71,24 +81,67 @@ PAGE_2M_NUM_TO_BYTES_NUM(unsigned long pages_num)
     return (pages_num << PAGE_2M_SHIFT);
 }
 
+// >>> BYTES_NUM_UPPER_ALIGN_BYTES(12,4)
+// 12
+// >>> BYTES_NUM_UPPER_ALIGN_BYTES(13,4)
+// 16
+// >>> BYTES_NUM_UPPER_ALIGN_BYTES(14,4)
+// 16
+// >>> BYTES_NUM_UPPER_ALIGN_BYTES(15,4)
+// 16
+// >>> BYTES_NUM_UPPER_ALIGN_BYTES(16,4)
+// 16
+// def BYTES_NUM_UPPER_ALIGN_BYTES(size, align_bytes):
+//     BYTES_SIZE = align_bytes
+//     BYTES_MASK = (~(BYTES_SIZE - 1))
+//     return ((size + BYTES_SIZE - 1) & BYTES_MASK)
 unsigned long
-BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes);
+BYTES_NUM_UPPER_ALIGN_BYTES(unsigned long size, unsigned long align_bytes);
 unsigned long
-BYTES_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
+BYTES_NUM_UPPER_ALIGN_BYTES(unsigned long size, unsigned long align_bytes)
 {
     const unsigned long BYTES_SIZE = align_bytes;
     const unsigned long BYTES_MASK = (~(BYTES_SIZE - 1));
     return ((size + BYTES_SIZE - 1) & BYTES_MASK);
 }
 
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(12*8, 4)
+// 12
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(13*8, 4)
+// 16
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(14*8, 4)
+// 16
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(15*8, 4)
+// 16
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(16*8, 4)
+// 16
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(17*8, 4)
+// 20
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(1, 4)
+// 4
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(2, 4)
+// 4
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(6, 4)
+// 4
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(10, 4)
+// 4
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(0, 4)
+// 0
+// >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(4*10, 4)
+// 8
+// def BYTES_NUM_BITS_UPPER_ALIGN_BYTES(size, align_bytes):
+//     BYTES_SIZE = align_bytes
+//     BYTES_MASK = (~(BYTES_SIZE - 1))
+//     bytes_size = (size + BYTES_SIZE * 8 - 1) / 8
+//     return (int(bytes_size) & BYTES_MASK)
 unsigned long
-BITS_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes);
+BYTES_NUM_BITS_UPPER_ALIGN_BYTES(unsigned long bits_size, unsigned long align_bytes);
 unsigned long
-BITS_NUM_UPPER_ALIGN(unsigned long size, unsigned long align_bytes)
+BYTES_NUM_BITS_UPPER_ALIGN_BYTES(unsigned long bits_size, unsigned long align_bytes)
 {
     const unsigned long BYTES_SIZE = align_bytes;
     const unsigned long BYTES_MASK = (~(BYTES_SIZE - 1));
-    const unsigned long bytes_size = (size + BYTES_SIZE * 8 - 1) / 8;
+    const unsigned long bytes_size = (bits_size + BYTES_SIZE * 8 - 1) / 8;
     return (bytes_size & BYTES_MASK);
 }
 
@@ -211,7 +264,7 @@ void init_memory()
     global_memory_descriptor.bits_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
 
     static const unsigned long LONG_TYPE_BYTES = sizeof(long);
-    global_memory_descriptor.bits_length = BITS_NUM_UPPER_ALIGN(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
+    global_memory_descriptor.bits_length = BYTES_NUM_BITS_UPPER_ALIGN_BYTES(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
     // The entire bits_map space is set all the way to mark non-memory pages
     // (memory voids and ROM space) as used, and then the available physical
     // memory pages in the map bitmap are programmatically reset later.
@@ -234,7 +287,7 @@ void init_memory()
     global_memory_descriptor.pages_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
 
     static const unsigned long PER_PAGE_BYTES = sizeof(struct Page);
-    global_memory_descriptor.pages_length = BYTES_NUM_UPPER_ALIGN(
+    global_memory_descriptor.pages_length = BYTES_NUM_UPPER_ALIGN_BYTES(
         global_memory_descriptor.pages_size * PER_PAGE_BYTES, LONG_TYPE_BYTES);
     memset(global_memory_descriptor.pages,
            0x00,
@@ -250,7 +303,7 @@ void init_memory()
     global_memory_descriptor.zones_size = 0;
     const unsigned long INIT_ZONES_NUMBER = 5;
     static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
-    global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
+    global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN_BYTES(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
 
     for (unsigned long i = 0; i < global_memory_descriptor.e820.number_entries;
          ++i)
@@ -285,9 +338,9 @@ void init_memory()
                 {
                     page_index->zone = new_zone;
                     page_index->physical_address = start + PAGE_2M_SIZE * j;
-                    page_index->attribute = 0;
-                    page_index->reference_count = 0;
-                    page_index->create_time = 0;
+                    page_index->attribute = 0UL;
+                    page_index->reference_count = 0UL;
+                    page_index->create_time = 0UL;
 
                     // sizeof(*bitmap) = 8 bytes = 64 bits
                     // *bitmap inital value is : 11111...11111 (64-bit),
@@ -305,4 +358,24 @@ void init_memory()
             }
         }
     }
+
+    global_memory_descriptor.pages->zone = global_memory_descriptor.zones;
+
+    global_memory_descriptor.pages->physical_address = 0UL;
+    global_memory_descriptor.pages->attribute = 0UL;
+    global_memory_descriptor.pages->reference_count = 0UL;
+    global_memory_descriptor.pages->create_time = 0UL;
+
+    // After some traversal, all available physical memory pages have been initialized, but since the 0-2MB physical memory page contains multiple physical memory segments, 
+    // including the kernel program, the page must be specially initialized before the number of elements in the struct zone space structure array can be calculated
+    const unsigned long zones_total_size = global_memory_descriptor.zones_size * sizeof(struct Zone);
+    global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN_BYTES(zones_total_size, sizeof(long));
+
+    color_printk(ORANGE,BLACK,"bits_map:%#018lx,bits_size:%#018lx,bits_length:%#018lx\n",global_memory_descriptor.bits_map,global_memory_descriptor.bits_size,global_memory_descriptor.bits_length);
+	color_printk(ORANGE,BLACK,"pages_struct:%#018lx,pages_size:%#018lx,pages_length:%#018lx\n",global_memory_descriptor.pages,global_memory_descriptor.pages_size,global_memory_descriptor.pages_length);
+	color_printk(ORANGE,BLACK,"zones_struct:%#018lx,zones_size:%#018lx,zones_length:%#018lx\n",global_memory_descriptor.zones,global_memory_descriptor.zones_size,global_memory_descriptor.zones_length);
+
+
+
+
 }
