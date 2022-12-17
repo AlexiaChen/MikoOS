@@ -16,8 +16,8 @@
 /*
  */
 
-#define ENTRY(name)                                                            \
-  .global SYMBOL_NAME(name);                                                   \
-  SYMBOL_NAME_LABEL(name)
+#define ENTRY(name)            \
+    .global SYMBOL_NAME(name); \
+    SYMBOL_NAME_LABEL(name)
 
 #endif

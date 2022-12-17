@@ -1,9 +1,10 @@
 #ifndef __PRINTK_H__
 #define __PRINTK_H__
 
+#include <stdarg.h>
+
 #include "font.h"
 #include "linkage.h"
-#include <stdarg.h>
 
 #define ZEROPAD 1  /* pad with zero */
 #define SIGN 2     /* unsigned/signed long */
@@ -34,48 +35,42 @@ char buffer[1024 * 4] = { 0 };
 // screen current information
 struct position
 {
-  // screen resolution
-  int x_resolution;
-  int y_resolution;
+    // screen resolution
+    int x_resolution;
+    int y_resolution;
 
-  // current cursor postioon (origin point is left-upper corner)
-  int x_position;
-  int y_position;
+    // current cursor postioon (origin point is left-upper corner)
+    int x_position;
+    int y_position;
 
-  // one char x*y size
-  int x_char_size;
-  int y_char_size;
+    // one char x*y size
+    int x_char_size;
+    int y_char_size;
 
-  // frame buffer linear address and length
-  unsigned int* frame_buffer_address;
-  unsigned long frame_buffer_length;
+    // frame buffer linear address and length
+    unsigned int* frame_buffer_address;
+    unsigned long frame_buffer_length;
 } screen_position;
 
-void
-init_screen(int width, int height);
+void init_screen(int width, int height);
 
-void
-test_color(int width, int height);
+void test_color(int width, int height);
 
-void
-putchar(unsigned int* frame_buffer,
-        int x_size,
-        int x,
-        int y,
-        unsigned int front_color,
-        unsigned int back_color,
-        unsigned char font);
-
-int
-skip_atoi(const char** s);
-
-int
-vsprintf(char* buf, const char* fmt, va_list args);
-
-int
-color_printk(unsigned int front_color,
+void putchar(unsigned int* frame_buffer,
+             int x_size,
+             int x,
+             int y,
+             unsigned int front_color,
              unsigned int back_color,
-             const char* fmt,
-             ...);
+             unsigned char font);
+
+int skip_atoi(const char** s);
+
+int vsprintf(char* buf, const char* fmt, va_list args);
+
+int color_printk(unsigned int front_color,
+                 unsigned int back_color,
+                 const char* fmt,
+                 ...);
 
 #endif

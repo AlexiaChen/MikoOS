@@ -66,12 +66,12 @@ PhysicalToVirtualAddr(unsigned long addr);
 
 enum E820EntryType
 {
-  E820_RAM = 1,          // Usable (normal) RAM
-  E820_RESERVED = 2,     // Reserved - unusable
-  E820_ACPI_RECLAIM = 3, // ACPI reclaimable memory
-  E820_ACPI_NVS = 4,     // ACPI NVS memory
-  E820_BAD_MEMORY = 5,   // Area containing bad memory
-  E820_UNDEFINED = 0
+    E820_RAM = 1,          // Usable (normal) RAM
+    E820_RESERVED = 2,     // Reserved - unusable
+    E820_ACPI_RECLAIM = 3, // ACPI reclaimable memory
+    E820_ACPI_NVS = 4,     // ACPI NVS memory
+    E820_BAD_MEMORY = 5,   // Area containing bad memory
+    E820_UNDEFINED = 0
 };
 
 // There are several groups of physical address space information at address
@@ -81,11 +81,11 @@ enum E820EntryType
 // space information occupies 20 Byte
 struct MemoryE820Format
 {
-  unsigned int address1;
-  unsigned int address2;
-  unsigned int length1;
-  unsigned int length2;
-  unsigned int type;
+    unsigned int address1;
+    unsigned int address2;
+    unsigned int length1;
+    unsigned int length2;
+    unsigned int type;
 };
 
 // The special attribute __attribute__((packed)) in the structure;
@@ -95,9 +95,9 @@ struct MemoryE820Format
 // the struct E820 structure
 struct E820Entry
 {
-  unsigned long address;
-  unsigned long length;
-  unsigned int type;
+    unsigned long address;
+    unsigned long length;
+    unsigned int type;
 } __attribute__((packed));
 
 #define E820_MAX_ENTRIES 32
@@ -107,74 +107,73 @@ struct E820Entry
 // https://wiki.osdev.org/Detecting_Memory_(x86)
 struct GlobalE820Table
 {
-  struct E820Entry entries[E820_MAX_ENTRIES]; // Physical memory segments array
-  unsigned long number_entries; // Number of physical memory segments
+    struct E820Entry entries[E820_MAX_ENTRIES]; // Physical memory segments array
+    unsigned long number_entries;               // Number of physical memory segments
 };
 
 struct GlobalMemoryDescriptor
 {
-  struct GlobalE820Table e820;
+    struct GlobalE820Table e820;
 
-  unsigned long* bits_map; // Physical space page(struct page) bitmap (address)
-  unsigned long bits_size; // number of pages in the physical space
-  unsigned long bits_length; // Number of bytes in the bitmap
+    unsigned long* bits_map;   // Physical space page(struct page) bitmap (address)
+    unsigned long bits_size;   // number of pages in the physical space
+    unsigned long bits_length; // Number of bytes in the bitmap
 
-  struct Page* pages;         // Physical space page array
-  unsigned long pages_size;   // number of struct page
-  unsigned long pages_length; // length of struct page array
+    struct Page* pages;         // Physical space page array
+    unsigned long pages_size;   // number of struct page
+    unsigned long pages_length; // length of struct page array
 
-  struct Zone* zones;         //  zones array
-  unsigned long zones_size;   // number of struct zone
-  unsigned long zones_length; // length of struct zone array
+    struct Zone* zones;         //  zones array
+    unsigned long zones_size;   // number of struct zone
+    unsigned long zones_length; // length of struct zone array
 
-  unsigned long start_kernel_code; // start address of kernel code segment
-  unsigned long end__kernel_code;  // end address of kernel code segment
-  unsigned long end_data;          // end address of kernel data segment
-  unsigned long end_brk;           // end address of kernel (BSS segmengt)
+    unsigned long start_kernel_code; // start address of kernel code segment
+    unsigned long end__kernel_code;  // end address of kernel code segment
+    unsigned long end_data;          // end address of kernel data segment
+    unsigned long end_brk;           // end address of kernel (BSS segmengt)
 
-  unsigned long end_of_struct; // end address of struct GlobalMemoryDescriptor
+    unsigned long end_of_struct; // end address of struct GlobalMemoryDescriptor
 };
 
 // every 2M physical page is represent a page
 struct Page
 {
-  struct Zone* zone; // pointer to the zone that the page belongs to
-  unsigned long physical_address; // physical address of the page
-  unsigned long attribute; // page attribute (mapping state of the page, active
-                           // state, user info etc )
+    struct Zone* zone;              // pointer to the zone that the page belongs to
+    unsigned long physical_address; // physical address of the page
+    unsigned long attribute;        // page attribute (mapping state of the page, active
+                                    // state, user info etc )
 
-  unsigned long reference_count; // reference count of the page
-  unsigned long create_time;     // the time when the page is created
+    unsigned long reference_count; // reference count of the page
+    unsigned long create_time;     // the time when the page is created
 };
 
 struct Zone
 {
-  struct Page* pages;         // pointer to the first page of the zone
-  unsigned long number_pages; // number of pages in the zone
+    struct Page* pages;         // pointer to the first page of the zone
+    unsigned long number_pages; // number of pages in the zone
 
-  unsigned long start_address; // start address of the zone
-  unsigned long end_address;   // end address of the zone
-  unsigned long attribute; // zone attribute （Describes whether the current
-                           // zone supports DMA, whether the pages are mapped
-                           // through the page table, and other information.）
-  unsigned long length;    //  length of the zone align by page size
+    unsigned long start_address; // start address of the zone
+    unsigned long end_address;   // end address of the zone
+    unsigned long attribute;     // zone attribute （Describes whether the current
+                                 // zone supports DMA, whether the pages are mapped
+                                 // through the page table, and other information.）
+    unsigned long length;        //  length of the zone align by page size
 
-  struct GlobalMemoryDescriptor* gmt; // pointer to the global memory table
+    struct GlobalMemoryDescriptor* gmt; // pointer to the global memory table
 
-  unsigned long page_using_count; // number of pages using in the zone
-  unsigned long page_free_count;  // number of pages free in the zone
+    unsigned long page_using_count; // number of pages using in the zone
+    unsigned long page_free_count;  // number of pages free in the zone
 
-  // Since the mapping of physical pages in the page table can be a one-to-many
-  // relationship, a physical page can be mapped to multiple locations in the
-  // linear address space at the same time, so the member variables
-  // total_pages_ref_count and page_using_count are not necessarily equal in
-  // value
-  unsigned long total_pages_ref_count; // all of  pages reference count
+    // Since the mapping of physical pages in the page table can be a one-to-many
+    // relationship, a physical page can be mapped to multiple locations in the
+    // linear address space at the same time, so the member variables
+    // total_pages_ref_count and page_using_count are not necessarily equal in
+    // value
+    unsigned long total_pages_ref_count; // all of  pages reference count
 };
 
 extern struct GlobalMemoryDescriptor global_memory_descriptor;
 
-void
-init_memory(void);
+void init_memory(void);
 
 #endif
