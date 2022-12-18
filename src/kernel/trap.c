@@ -43,9 +43,9 @@ enum SegmentFlags
 };
 
 static bool_t
-hash_segment_error_flag(unsigned long error_code, int flag);
+has_segment_error_flag(unsigned long error_code, int flag);
 static bool_t
-hash_segment_error_flag(unsigned long error_code, int flag)
+has_segment_error_flag(unsigned long error_code, int flag)
 {
     return ((error_code & flag) > 0) ? true : false;
 }
@@ -156,22 +156,22 @@ void do_invalid_TSS(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_invalid_TSS(10)", rsp, error_code);
 
-    if (hash_segment_error_flag(error_code, EXT_FLAG))
+    if (has_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (hash_segment_error_flag(error_code, IDT_FLAG))
+    if (has_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!hash_segment_error_flag(error_code, IDT_FLAG))
+    if (!has_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (hash_segment_error_flag(error_code, TI_FLAG))
+        if (has_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -190,22 +190,22 @@ void do_segment_not_present(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_segment_not_present(11)", rsp, error_code);
 
-    if (hash_segment_error_flag(error_code, EXT_FLAG))
+    if (has_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (hash_segment_error_flag(error_code, IDT_FLAG))
+    if (has_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!hash_segment_error_flag(error_code, IDT_FLAG))
+    if (!has_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (hash_segment_error_flag(error_code, TI_FLAG))
+        if (has_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -224,22 +224,22 @@ void do_stack_segment_fault(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_stack_segment_fault(12)", rsp, error_code);
 
-    if (hash_segment_error_flag(error_code, EXT_FLAG))
+    if (has_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (hash_segment_error_flag(error_code, IDT_FLAG))
+    if (has_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!hash_segment_error_flag(error_code, IDT_FLAG))
+    if (!has_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (hash_segment_error_flag(error_code, TI_FLAG))
+        if (has_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -258,22 +258,22 @@ void do_general_protection(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_general_protection(13)", rsp, error_code);
 
-    if (hash_segment_error_flag(error_code, EXT_FLAG))
+    if (has_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (hash_segment_error_flag(error_code, IDT_FLAG))
+    if (has_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!hash_segment_error_flag(error_code, IDT_FLAG))
+    if (!has_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (hash_segment_error_flag(error_code, TI_FLAG))
+        if (has_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
