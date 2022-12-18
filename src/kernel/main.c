@@ -57,6 +57,13 @@ void Start_Kernel(void)
     global_memory_descriptor.end_data = (unsigned long)&_enddata;
     global_memory_descriptor.end_brk = (unsigned long)&_end;
 
+    color_printk(ORANGE, BLACK, "###### main func: start_code:%#018lx,end_code:%#018lx,end_data:%#018lx,end_brk:%#018lx,end_of_struct:%#018lx\n",
+                 global_memory_descriptor.start_kernel_code,
+                 global_memory_descriptor.end__kernel_code,
+                 global_memory_descriptor.end_data,
+                 global_memory_descriptor.end_brk,
+                 global_memory_descriptor.end_of_struct);
+
     color_printk(RED, BLACK, "init memory\n");
     init_memory();
     bool_t enable_tests = false;
