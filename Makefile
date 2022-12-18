@@ -1,6 +1,6 @@
 # https://stackoverflow.com/questions/154630/recommended-gcc-warning-options-for-c
 # https://stackoverflow.com/questions/3375697/what-are-the-useful-gcc-flags-for-c
-options := -std=c99 -static -mcmodel=large -fno-builtin -m64 \
+options := -std=c17 -static -mcmodel=large -fno-builtin -m64 \
 -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-qual  \
 -Wstrict-prototypes -Wmissing-prototypes -Wfloat-equal \
 -Wundef -Waggregate-return -Wswitch-default -Wswitch-enum \
