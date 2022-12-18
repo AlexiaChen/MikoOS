@@ -309,7 +309,7 @@ is_page_flag_set(unsigned long error_code, int flag);
 static bool_t
 is_page_flag_set(unsigned long error_code, int flag)
 {
-    return ((error_code & flag) == 1) ? true : false;
+    return ((error_code & flag) > 0) ? true : false;
 }
 
 void do_page_fault(unsigned long rsp, unsigned long error_code);
