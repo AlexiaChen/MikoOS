@@ -11,7 +11,7 @@ A implementation of OS based-on bochs written C
 
 ```bash
 # ubuntu is better, it also works on WSL2 for windows
-sudo apt install nasm bochs bochs-x bximage
+sudo apt install nasm bochs bochs-x bximage clang-format
 ```
 
 # Build Kernel and Floppy Image
