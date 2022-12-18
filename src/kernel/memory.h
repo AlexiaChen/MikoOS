@@ -226,7 +226,7 @@ enum PageFlags
 bool_t has_atrribute(unsigned long flags, unsigned long flag);
 inline bool_t has_atrribute(unsigned long flags, unsigned long flag)
 {
-    return (bool_t)(flags & flag);
+    return ((flags & flag) > 0) ? true : false;
 }
 
 unsigned long init_page(struct Page* page, unsigned long flags);
