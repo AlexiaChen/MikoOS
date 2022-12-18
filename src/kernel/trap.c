@@ -18,27 +18,36 @@ error code format: 32-bit
 bit)--|--(0 bit)--|
 
 31-61 bit: reserved
+
 15-3 bit: segment selector
+
 2 bit: TI, This bit is set only when the IDT flag bit is unset. If this bit is
 set, the segment selector of the error code records the segment descriptor or
 gate descriptor in the local descriptor table (LDT). This flag unset means that
-it records the global descriptor table (GDT) descriptor 1 bit: IDT, If this bit
+it records the global descriptor table (GDT) descriptor 
+
+1 bit: IDT, If this bit
 is set, the segment selector of the error code records the gate descriptor in
 the interrupt descriptor table(IDT), and unset that it records the descriptor in
-the descriptor table (GDT / LDT) 0 bit: EXT, If this bit is set, the exception
+the descriptor table (GDT / LDT) 
+
+0 bit: EXT, If this bit is set, the exception
 is triggered during the delivery of an external event to the program
 */
 
-#define EXT_FLAG 0x01 // 1 << 0
-#define IDT_FLAG 0x02 // 1 << 1
-#define TI_FLAG 0x04  // 1 << 2
+enum SegmentFlags
+{
+    EXT_FLAG = 1 << 0,
+    IDT_FLAG = 1 << 1,
+    TI_FLAG = 1 << 2
+};
 
 static bool_t
-is_flag_set(unsigned long error_code, int flag);
+hash_segment_error_flag(unsigned long error_code, int flag);
 static bool_t
-is_flag_set(unsigned long error_code, int flag)
+hash_segment_error_flag(unsigned long error_code, int flag)
 {
-    return ((error_code & flag) == 1) ? true : false;
+    return ((error_code & flag) > 0) ? true : false;
 }
 
 static void
@@ -147,22 +156,22 @@ void do_invalid_TSS(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_invalid_TSS(10)", rsp, error_code);
 
-    if (is_flag_set(error_code, EXT_FLAG))
+    if (hash_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (is_flag_set(error_code, IDT_FLAG))
+    if (hash_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!is_flag_set(error_code, IDT_FLAG))
+    if (!hash_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (is_flag_set(error_code, TI_FLAG))
+        if (hash_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -181,22 +190,22 @@ void do_segment_not_present(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_segment_not_present(11)", rsp, error_code);
 
-    if (is_flag_set(error_code, EXT_FLAG))
+    if (hash_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (is_flag_set(error_code, IDT_FLAG))
+    if (hash_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!is_flag_set(error_code, IDT_FLAG))
+    if (!hash_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (is_flag_set(error_code, TI_FLAG))
+        if (hash_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -215,22 +224,22 @@ void do_stack_segment_fault(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_stack_segment_fault(12)", rsp, error_code);
 
-    if (is_flag_set(error_code, EXT_FLAG))
+    if (hash_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (is_flag_set(error_code, IDT_FLAG))
+    if (hash_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!is_flag_set(error_code, IDT_FLAG))
+    if (!hash_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (is_flag_set(error_code, TI_FLAG))
+        if (hash_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -249,22 +258,22 @@ void do_general_protection(unsigned long rsp, unsigned long error_code)
 {
     do_print_trap_context("do_general_protection(13)", rsp, error_code);
 
-    if (is_flag_set(error_code, EXT_FLAG))
+    if (hash_segment_error_flag(error_code, EXT_FLAG))
         color_printk(
             RED,
             BLACK,
             "The exception occurred during delivery of an event external to the "
             "program,such as an interrupt or an earlier exception.\n");
 
-    if (is_flag_set(error_code, IDT_FLAG))
+    if (hash_segment_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, "Refers to a gate descriptor in the IDT;\n");
     else
         color_printk(
             RED, BLACK, "Refers to a descriptor in the GDT or the current LDT;\n");
 
-    if (!is_flag_set(error_code, IDT_FLAG))
+    if (!hash_segment_error_flag(error_code, IDT_FLAG))
     {
-        if (is_flag_set(error_code, TI_FLAG))
+        if (hash_segment_error_flag(error_code, TI_FLAG))
             color_printk(
                 RED, BLACK, "Refers to a segment or gate descriptor in the LDT;\n");
         else
@@ -285,29 +294,41 @@ page error code format: 32-bit
 bit)--|--(0 bit)--|
 
 31 to 5 bit: Reserved
+
 4 bit:  I/D, if the flag is unset means that no exception was thrown while
 getting the instruction, if flag is set, means that have exception was thrown
-while getting the instruction 3 bit: RSVD, if the flag is unset means that the
+while getting the instruction 
+
+3 bit: RSVD, if the flag is unset means that the
 reserved bit of the page table entry did not throw an exception, if flag set,
 means that the reserved bit of the page table entry being set  cause to  throw
-an exception 2 bit: U/S, if the flag is unset means that using super user rights
+an exception 
+
+2 bit: U/S, if the flag is unset means that using super user rights
 to access the page throw an exception if flag set means that using normal user
-rights to access the page throw an exception 1 bit: W/R, if the flag is unset
-means that read page, and the flag is set means that write page 0 bit: P, if the
+rights to access the page throw an exception 
+
+1 bit: W/R, if the flag is unset
+means that read page, and the flag is set means that write page
+
+ 0 bit: P, if the
 flag is unset means that the page is not present, and the flag is set means that
 page protection
 */
 
-#define P_FLAG 0x01    // 1 << 0
-#define WR_FLAG 0x02   // 1 << 1
-#define US_FLAG 0x04   // 1 << 2
-#define RSVD_FLAG 0x08 // 1 << 3
-#define ID_FLAG 0x10   // 1 << 4
+enum PageAccessFlags
+{
+    P_FLAG = 1 << 0,
+    WR_FLAG = 1 << 1,
+    US_FLAG = 1 << 2,
+    RSVD_FLAG = 1 << 3,
+    ID_FLAG = 1 << 4
+};
 
 static bool_t
-is_page_flag_set(unsigned long error_code, int flag);
+has_page_error_flag(unsigned long error_code, int flag);
 static bool_t
-is_page_flag_set(unsigned long error_code, int flag)
+has_page_error_flag(unsigned long error_code, int flag)
 {
     return ((error_code & flag) > 0) ? true : false;
 }
@@ -329,23 +350,23 @@ void do_page_fault(unsigned long rsp, unsigned long error_code)
                  rsp,
                  *p);
 
-    if (!is_page_flag_set(error_code, P_FLAG))
+    if (!has_page_error_flag(error_code, P_FLAG))
         color_printk(RED, BLACK, "Page Not-Present,\t");
 
-    if (is_page_flag_set(error_code, WR_FLAG))
+    if (has_page_error_flag(error_code, WR_FLAG))
         color_printk(RED, BLACK, "Write Cause Fault,\t");
     else
         color_printk(RED, BLACK, "Read Cause Fault,\t");
 
-    if (is_page_flag_set(error_code, US_FLAG))
+    if (has_page_error_flag(error_code, US_FLAG))
         color_printk(RED, BLACK, "Fault in user(3)\t");
     else
         color_printk(RED, BLACK, "Fault in supervisor(0,1,2)\t");
 
-    if (is_page_flag_set(error_code, RSVD_FLAG))
+    if (has_page_error_flag(error_code, RSVD_FLAG))
         color_printk(RED, BLACK, ",Reserved Bit Cause Fault\t");
 
-    if (is_page_flag_set(error_code, IDT_FLAG))
+    if (has_page_error_flag(error_code, IDT_FLAG))
         color_printk(RED, BLACK, ",Instruction fetch Cause Fault");
 
     color_printk(RED, BLACK, "\n");
