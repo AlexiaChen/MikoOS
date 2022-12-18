@@ -64,6 +64,8 @@ VirtualToPhysicalAddr(unsigned long addr);
 unsigned long*
 PhysicalToVirtualAddr(unsigned long addr);
 
+unsigned long* global_cr3 = NULL;
+
 enum E820EntryType
 {
     E820_RAM = 1,          // Usable (normal) RAM
@@ -135,6 +137,29 @@ struct GlobalMemoryDescriptor
     unsigned long end_of_struct; // end address of struct GlobalMemoryDescriptor
 };
 
+// Mark the page has used in bitmap
+void mark_page_used_in_bitsmap(unsigned long* bits_map, unsigned long page_physical_addr);
+inline void mark_page_used_in_bitsmap(unsigned long* bits_map, unsigned long page_physical_addr)
+{
+    unsigned long target_bitmap_value = *(bits_map + ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(page_physical_addr));
+    target_bitmap_value |= 1UL << ADDR_TO_PAGE_2M_NORMAL_INDEX(page_physical_addr) % 64;
+}
+
+void unmark_page_used_in_bitsmap(unsigned long* bits_map, unsigned long page_physical_addr);
+inline void unmark_page_used_in_bitsmap(unsigned long* bits_map, unsigned long page_physical_addr)
+{
+    unsigned long target_bitmap_value = *(bits_map + ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(page_physical_addr));
+    target_bitmap_value &= ~(1UL << ADDR_TO_PAGE_2M_NORMAL_INDEX(page_physical_addr) % 64);
+}
+
+// mark page used in bitsmap, do bit clear if the page used, do bit set if the page not used
+void mark_page_used_in_bitsmap_clear(unsigned long* bits_map, unsigned long page_physical_addr);
+inline void mark_page_used_in_bitsmap_clear(unsigned long* bits_map, unsigned long page_physical_addr)
+{
+    unsigned long target_bitmap_value = *(bits_map + ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(page_physical_addr));
+    target_bitmap_value ^= 1UL << ADDR_TO_PAGE_2M_NORMAL_INDEX(page_physical_addr) % 64;
+}
+
 // every 2M physical page is represent a page
 struct Page
 {
@@ -146,6 +171,14 @@ struct Page
     unsigned long reference_count; // reference count of the page
     unsigned long create_time;     // the time when the page is created
 };
+
+//// each zone index
+
+int ZONE_DMA_INDEX = 0;
+int ZONE_NORMAL_INDEX = 0;  //low 1GB RAM ,was mapped in pagetable
+int ZONE_UNMAPED_INDEX = 0; //above 1GB RAM,unmapped in pagetable
+
+#define MAX_NR_ZONES 10 //max zone
 
 struct Zone
 {
@@ -175,5 +208,66 @@ struct Zone
 extern struct GlobalMemoryDescriptor global_memory_descriptor;
 
 void init_memory(void);
+
+enum PageFlags
+{
+    PAGE_TABLE_MAPPED = (1 << 0), // Page mapped by page table
+    KERNEL_INIT = (1 << 1),       // Kernel initialization program
+    REFERENCED = (1 << 2),
+    DIRTY = (1 << 3),
+    ACTIVE = (1 << 4), // Page in use
+    UP_TO_DATE = (1 << 5),
+    DEVICE = (1 << 6),
+    KERNEL = (1 << 7), // Kernel level page
+    KERNEL_SHARE_TO_USER = (1 << 8),
+    SLAB = (1 << 9)
+};
+
+bool_t has_atrribute(unsigned long flags, unsigned long flag);
+inline bool_t has_atrribute(unsigned long flags, unsigned long flag)
+{
+    return (bool_t)(flags & flag);
+}
+
+unsigned long init_page(struct Page* page, unsigned long flags);
+unsigned long clean_page(struct Page* page);
+
+void flush_tlb_one(unsigned long addr);
+inline void flush_tlb_one(unsigned long addr)
+{
+    __asm__ __volatile__("invlpg	(%0)	\n\t" ::"r"(addr)
+                         : "memory");
+}
+
+// The CR3 control register is reassigned only once to make the changed page table entries effective.
+// In fact, after the page table entry is changed, the original page table entry is still cached in the TLB (Translation Lookaside Buffer),
+//  and reloading the page table directory base address to the CR3 control register will force the TLB to be refreshed automatically
+void flush_tlb(void);
+inline void flush_tlb(void)
+{
+    do
+    {
+        unsigned long tmpreg;
+        __asm__ __volatile__(
+            "movq	%%cr3,	%0	\n\t"
+            "movq	%0,	%%cr3	\n\t"
+            : "=r"(tmpreg)
+            :
+            : "memory");
+    } while (0);
+}
+
+// Read the physical base address of the page directory in the CR3 control register
+unsigned long* get_gdt(void);
+inline unsigned long* get_gdt(void)
+{
+    unsigned long* tmp;
+    __asm__ __volatile__(
+        "movq	%%cr3,	%0	\n\t"
+        : "=r"(tmp)
+        :
+        : "memory");
+    return tmp;
+}
 
 #endif

@@ -105,6 +105,50 @@ BYTES_NUM_UPPER_ALIGN_BYTES(unsigned long size, unsigned long align_bytes)
     return ((size + BYTES_SIZE - 1) & BYTES_MASK);
 }
 
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(0, 4 * 32)
+// 128
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(1, 4 * 32)
+// 128
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(2, 4 * 32)
+// 130
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(3, 4 * 32)
+// 130
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(4, 4 * 32)
+// 128
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(5, 4 * 32)
+// 128
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(6, 4 * 32)
+// 130
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(7, 4 * 32)
+// 130
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(8, 4 * 32)
+// 136
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(9, 4 * 32)
+// 136
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(10, 4 * 32)
+// 138
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(11, 4 * 32)
+// 138
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(12, 4 * 32)
+// 136
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(13, 4 * 32)
+// 136
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(14, 4 * 32)
+// 138
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(15, 4 * 32)
+// 138
+// >>> BYTES_NUM_LOWER_ALIGN_BYTES(16, 4 * 32)
+// 144
+unsigned long
+BYTES_NUM_LOWER_ALIGN_BYTES(unsigned long size, unsigned long align_bytes);
+unsigned long
+BYTES_NUM_LOWER_ALIGN_BYTES(unsigned long size, unsigned long align_bytes)
+{
+    const unsigned long BYTES_SIZE = align_bytes;
+    const unsigned long BYTES_MASK = (~(BYTES_SIZE - 1));
+    return ((size + BYTES_SIZE) & BYTES_MASK);
+}
+
 // >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(12*8, 4)
 // 12
 // >>> BYTES_NUM_BITS_UPPER_ALIGN_BYTES(13*8, 4)
@@ -263,8 +307,7 @@ void init_memory()
     // physical memory, but also memory voids and ROM address space
     global_memory_descriptor.bits_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
 
-    static const unsigned long LONG_TYPE_BYTES = sizeof(long);
-    global_memory_descriptor.bits_length = BYTES_NUM_BITS_UPPER_ALIGN_BYTES(global_memory_descriptor.bits_size, LONG_TYPE_BYTES);
+    global_memory_descriptor.bits_length = BYTES_NUM_BITS_UPPER_ALIGN_BYTES(global_memory_descriptor.bits_size, sizeof(long));
     // The entire bits_map space is set all the way to mark non-memory pages
     // (memory voids and ROM space) as used, and then the available physical
     // memory pages in the map bitmap are programmatically reset later.
@@ -282,13 +325,11 @@ void init_memory()
     // is the number of pages that can be allocated in the physical address space,
     // which is allocated and calculated in a similar way to the bitmap, except
     // that the array is zeroed out for subsequent initialization procedures.
-    unsigned long pages_addr = (unsigned long)(global_memory_descriptor.bits_map + global_memory_descriptor.bits_length);
+    unsigned long pages_addr = (unsigned long)global_memory_descriptor.bits_map + global_memory_descriptor.bits_length;
     global_memory_descriptor.pages = (struct Page*)PAGE_4K_UPPER_ALIGN(pages_addr);
     global_memory_descriptor.pages_size = BYTES_NUM_TO_PAGE_2M_NUM(end_addr_of_physical_space);
-
-    static const unsigned long PER_PAGE_BYTES = sizeof(struct Page);
     global_memory_descriptor.pages_length = BYTES_NUM_UPPER_ALIGN_BYTES(
-        global_memory_descriptor.pages_size * PER_PAGE_BYTES, LONG_TYPE_BYTES);
+        global_memory_descriptor.pages_size * sizeof(struct Page), sizeof(long));
     memset(global_memory_descriptor.pages,
            0x00,
            global_memory_descriptor.pages_length);
@@ -298,12 +339,11 @@ void init_memory()
     // array cannot be calculated for the time being, the value is assigned to 0
     // for the time being, and the zones_length is calculated according to the 5
     // struct zone structures for the time being
-    unsigned long zones_addr = (unsigned long)(global_memory_descriptor.pages + global_memory_descriptor.pages_length);
+    unsigned long zones_addr = (unsigned long)global_memory_descriptor.pages + global_memory_descriptor.pages_length;
     global_memory_descriptor.zones = (struct Zone*)PAGE_4K_UPPER_ALIGN(zones_addr);
     global_memory_descriptor.zones_size = 0;
     const unsigned long INIT_ZONES_NUMBER = 5;
-    static const unsigned long PER_ZONE_BYTES = sizeof(struct Zone);
-    global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN_BYTES(INIT_ZONES_NUMBER * PER_ZONE_BYTES, LONG_TYPE_BYTES);
+    global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN_BYTES(INIT_ZONES_NUMBER * sizeof(struct Zone), sizeof(long));
 
     for (unsigned long i = 0; i < global_memory_descriptor.e820.number_entries;
          ++i)
@@ -352,8 +392,7 @@ void init_memory()
                     // the available physical page is set to 0 (because it is an iso-or
                     // operation), marking the corresponding available physical page as
                     // unused
-                    unsigned long target_bitmap_value = *(global_memory_descriptor.bits_map + ADDR_TO_PAGE_2M_64BITS_LOWER_INDEX(page_index->physical_address));
-                    target_bitmap_value ^= 1UL << ADDR_TO_PAGE_2M_NORMAL_INDEX(page_index->physical_address) % 64;
+                    mark_page_used_in_bitsmap_clear(global_memory_descriptor.bits_map, page_index->physical_address);
                 }
             }
         }
@@ -366,16 +405,129 @@ void init_memory()
     global_memory_descriptor.pages->reference_count = 0UL;
     global_memory_descriptor.pages->create_time = 0UL;
 
-    // After some traversal, all available physical memory pages have been initialized, but since the 0-2MB physical memory page contains multiple physical memory segments, 
+    // After some traversal, all available physical memory pages have been initialized, but since the 0-2MB physical memory page contains multiple physical memory segments,
     // including the kernel program, the page must be specially initialized before the number of elements in the struct zone space structure array can be calculated
     const unsigned long zones_total_size = global_memory_descriptor.zones_size * sizeof(struct Zone);
     global_memory_descriptor.zones_length = BYTES_NUM_UPPER_ALIGN_BYTES(zones_total_size, sizeof(long));
 
-    color_printk(ORANGE,BLACK,"bits_map:%#018lx,bits_size:%#018lx,bits_length:%#018lx\n",global_memory_descriptor.bits_map,global_memory_descriptor.bits_size,global_memory_descriptor.bits_length);
-	color_printk(ORANGE,BLACK,"pages_struct:%#018lx,pages_size:%#018lx,pages_length:%#018lx\n",global_memory_descriptor.pages,global_memory_descriptor.pages_size,global_memory_descriptor.pages_length);
-	color_printk(ORANGE,BLACK,"zones_struct:%#018lx,zones_size:%#018lx,zones_length:%#018lx\n",global_memory_descriptor.zones,global_memory_descriptor.zones_size,global_memory_descriptor.zones_length);
+    color_printk(ORANGE, BLACK, "bits_map:%#018lx,bits_size:%#018lx,bits_length:%#018lx\n", global_memory_descriptor.bits_map, global_memory_descriptor.bits_size, global_memory_descriptor.bits_length);
+    color_printk(ORANGE, BLACK, "pages_struct:%#018lx,pages_size:%#018lx,pages_length:%#018lx\n", global_memory_descriptor.pages, global_memory_descriptor.pages_size, global_memory_descriptor.pages_length);
+    color_printk(ORANGE, BLACK, "zones_struct:%#018lx,zones_size:%#018lx,zones_length:%#018lx\n", global_memory_descriptor.zones, global_memory_descriptor.zones_size, global_memory_descriptor.zones_length);
 
+    ZONE_DMA_INDEX = 0;
+    ZONE_NORMAL_INDEX = 0;
 
+    // If the starting address of the current area is 0x100000000, this area index value will be recorded in the global order ZONE_UNMAPPED_INDEX,
+    // indicating that the physical address memory page starting from this area space is not mapped through the page table.
+    // Finally, adjust the value of the member variable end_of_struct to record the end address of the above structure,
+    // and reserve a section of memory space to prevent out-of-bounds access
+    for (unsigned long i = 0; i < global_memory_descriptor.zones_size; ++i)
+    {
+        struct Zone* zone = &global_memory_descriptor.zones[i];
 
+        color_printk(ORANGE, BLACK, "zone_start_address:%#018lx,zone_end_address:%#018lx,zone_length:%#018lx,pages_group:%#018lx,pages_length:%#018lx\n",
+                     zone->start_address, zone->end_address, zone->length, zone->pages, zone->number_pages);
 
+        if (zone->start_address == 0x100000000)
+        {
+            ZONE_UNMAPED_INDEX = i;
+        }
+    }
+
+    unsigned long end_of_struct_addr = (unsigned long)global_memory_descriptor.zones + global_memory_descriptor.zones_length;
+    global_memory_descriptor.end_of_struct = BYTES_NUM_LOWER_ALIGN_BYTES(end_of_struct_addr, sizeof(long) * 32); ////need a blank to separate memory_management_struct
+
+    color_printk(ORANGE, BLACK, "start_code:%#018lx,end_code:%#018lx,end_data:%#018lx,end_brk:%#018lx,end_of_struct:%#018lx\n",
+                 global_memory_descriptor.start_kernel_code,
+                 global_memory_descriptor.end__kernel_code,
+                 global_memory_descriptor.end_data,
+                 global_memory_descriptor.end_brk,
+                 global_memory_descriptor.end_of_struct);
+
+    // After the memory management unit is initialized, the Page structure of the physical page occupied by
+    // the memory management unit (global_memory_descriptor) must also be initialized
+    for (unsigned long j = 0; j <= BYTES_NUM_TO_PAGE_2M_NUM(VirtualToPhysicalAddr(global_memory_descriptor.end_of_struct)); ++j)
+    {
+        init_page(&global_memory_descriptor.pages[j], PAGE_TABLE_MAPPED | KERNEL_INIT | ACTIVE | KERNEL);
+    }
+
+    // The remaining code of the init_memory function is used to empty the page table entries,
+    // which were used for the consistency page table mapping and no longer need to keep the consistency page table mapping at this moment
+
+    // Get the page directory base address, the base address is stored in the CR3 control register
+    global_cr3 = get_gdt();
+
+    // start address of several levels of page tables, the page table initialized by head.S
+    color_printk(INDIGO, BLACK, "Global_CR3\t:%#018lx\n", global_cr3);
+    color_printk(INDIGO, BLACK, "*Global_CR3\t:%#018lx\n", *PhysicalToVirtualAddr((unsigned long)global_cr3) & (~0xff));
+    color_printk(PURPLE, BLACK, "**Global_CR3\t:%#018lx\n", *PhysicalToVirtualAddr(*PhysicalToVirtualAddr((unsigned long)global_cr3) & (~0xff)) & (~0xff));
+
+    // Immediately afterwards,
+    // the first 10 page table entries in the page table directory (PML4 page table) are zeroed out in order to eliminate the consistency page table mapping
+    // (in fact, it is sufficient to zero out the first entry).
+    // Although these page table entries are cleared, they do not take effect immediately and flush_tlb must be used to make the changes take effect
+    for (int i = 0; i < 10; ++i)
+    {
+        *(PhysicalToVirtualAddr((unsigned long)global_cr3) + i) = 0UL;
+    }
+
+    flush_tlb();
+}
+
+unsigned long init_page(struct Page* page, unsigned long flags)
+{
+    if (page->attribute == 0)
+    {
+        mark_page_used_in_bitsmap(global_memory_descriptor.bits_map, page->physical_address);
+        page->attribute = flags;
+        page->reference_count++;
+        page->zone->page_using_count++;
+        page->zone->page_free_count--;
+        page->zone->total_pages_ref_count++;
+    }
+    else if (has_atrribute(page->attribute, REFERENCED) || has_atrribute(page->attribute, KERNEL_SHARE_TO_USER)
+             || has_atrribute(flags, REFERENCED) || has_atrribute(flags, KERNEL_SHARE_TO_USER))
+    {
+        page->attribute |= flags;
+        page->reference_count++;
+        page->zone->total_pages_ref_count++;
+    }
+    else
+    {
+        mark_page_used_in_bitsmap(global_memory_descriptor.bits_map, page->physical_address);
+        page->attribute |= flags;
+    }
+
+    return 0;
+}
+
+unsigned long clean_page(struct Page* page)
+{
+    if (page->attribute == 0)
+    {
+        page->attribute = 0;
+    }
+    else if (has_atrribute(page->attribute, REFERENCED) || has_atrribute(page->attribute, KERNEL_SHARE_TO_USER))
+    {
+        page->reference_count--;
+        page->zone->total_pages_ref_count--;
+
+        if (page->reference_count == 0)
+        {
+            page->attribute = 0;
+            page->zone->page_using_count--;
+            page->zone->page_free_count++;
+        }
+    }
+    else
+    {
+        unmark_page_used_in_bitsmap(global_memory_descriptor.bits_map, page->physical_address);
+        page->attribute = 0;
+        page->reference_count = 0;
+        page->zone->page_using_count--;
+        page->zone->page_free_count++;
+        page->zone->total_pages_ref_count--;
+    }
+
+    return 0;
 }
