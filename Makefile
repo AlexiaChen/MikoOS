@@ -68,6 +68,6 @@ clean:
 run:
 	bochs -f ./conf/linux-bochsrc
 
-format:
+fmt:
 	find ./src -type f -name \*.c | xargs clang-format -style=file -i
 	find ./src -type f -name \*.h | xargs clang-format -style=file -i
