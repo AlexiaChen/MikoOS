@@ -1,0 +1,25 @@
+# 与交互配置使用相同 legacy BIOS/VBE、2 GiB RAM 和软盘。RFB 不等待客户端。
+config_interface: textconfig
+display_library: rfb, options="timeout=0"
+romimage: file=/usr/share/bochs/BIOS-bochs-legacy
+vgaromimage: file=/usr/share/vgabios/vgabios.bin
+megs: 2048
+floppya: 1_44="bin/boot.img", status=inserted, write_protected=1
+boot: floppy
+cpu: count=1, ips=4000000, reset_on_triple_fault=0
+cpuid: x86_64=1
+pci: enabled=1, chipset=i440fx
+vga: extension=vbe, update_freq=5
+clock: sync=none, time0=0
+mouse: enabled=0
+speaker: enabled=0
+sound: waveoutdrv=dummy, waveindrv=dummy, midioutdrv=dummy
+port_e9_hack: enabled=1
+log: bin/bochs-smoke.log
+debugger_log: bin/bochs-debugger.log
+# Debian Bochs 2.7 的 RFB 不显示 32 bpp；仅此 GUI 组件允许 report。
+# CPU/内存/设备 panic 仍然 fatal，smoke.py 另行核对 RFB 报告白名单。
+panic: action=fatal, rfb=report
+error: action=report
+info: action=report
+debug: action=ignore

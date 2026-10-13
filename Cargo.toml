@@ -1,0 +1,26 @@
+[package]
+name = "mikoos"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "kernel"
+path = "src/kernel/main.rs"
+test = false
+bench = false
+
+[features]
+default = []
+fault-divide = []
+fault-page = []
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+debug = 2
+
+[dependencies]

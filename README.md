@@ -1,42 +1,24 @@
 # MikoOS
 
-A implementation of OS based-on bochs written C
+《一个64位操作系统的设计与实现》的逐章学习项目。内核使用 Rust `no_std`，
+BIOS/FAT12 引导与必要的机器入口保留少量汇编。当前实现到第 4 章初级物理内存管理部分。
+原版学习资料在父目录 `The-design-and-implementation-of-a-64-bit-os`。
 
-# Requirement
+AI 开发先读 [AGENTS.md](AGENTS.md)，再按 [上下文树](doc/context/README.md) 导航。
+要求不用 TDD、以源码为依据、完成实现后同步对应上下文，并充分解释教学性代码。
 
-- Bochs 2.6.11
-- Bochs-x
-- NASM
-- bximage
+需要 Rust 1.97.1、x86_64-unknown-none 目标、NASM、GNU objcopy、Python 3；运行需要 Bochs。
+工具和 ROM 配置详见 [构建说明](doc/context/development/build.md)。
 
-```bash
-# ubuntu is better, it also works on WSL2 for windows
-sudo apt install nasm bochs bochs-x bximage clang-format
+```sh
+make check              # 格式与严格 Clippy
+make                    # 构建 Rust 内核和 FAT12 软盘，无需 sudo
+make run                # 交互 Bochs，输入 c 继续
+make smoke              # 无桌面 Bochs 启动检查
+make smoke FEATURES=fault-divide
+make smoke FEATURES=fault-page
+make                    # 恢复正常镜像
 ```
 
-# Build Kernel and Floppy Image
-
-- Build and Burn kernel into floppy
-
-```bash
-make
-```
-
-# Run Kernel floppy image
-
-- Boot
-
-```bash
-# run kernel on bochs for linux
-make run
-```
-
-```shell
-# in the interative bochs cli
-bochs> continue
-
-# exit
-bochs> exit
-```
-
-
+当前能力、未完成部分见 [章节进度](doc/context/project/progress.md)，
+真实执行过的检查见 [验证记录](doc/context/development/validation.md)。

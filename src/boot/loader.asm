@@ -9,7 +9,11 @@ OffsetOfKernelFile equ 0x100000 ; 1MB offset
 BaseTempOfKernelAddress equ 0x00 
 OffsetTempOfKernelFile equ 0x7E00 ; Temp space address for reading kernel file
 
-MemoryStructBufferAddress equ 0x7E00 ; Physical memory address space info saved in physical address 0x7E00 
+; Rust 交接协议：32 个 20 字节 E820 条目，数量单独存放。
+; 旧 0x7e00 缓冲区可能与 0x8000 VBE 信息重叠，改为不冲突的低端内存。
+MemoryStructBufferAddress equ 0x5000
+MemoryStructCountAddress equ 0x4ff0
+MemoryStructMaxEntries equ 32
 
 [SECTION gdt]
 
@@ -274,14 +278,22 @@ KillMotor:
 	mov	ax,	0x00
 	mov	es,	ax
 	mov	di,	MemoryStructBufferAddress
+	mov word [es:MemoryStructCountAddress], 0
 
 _Get_Mem_Struct:
+    cmp word [es:MemoryStructCountAddress], MemoryStructMaxEntries
+    jae _Get_Mem_Fail ; 容量不足时停止，不能越界或静默截断内存图
 	; E820 memory map
 	mov	eax,	0x0E820 ; 
 	mov	ecx,	20 ; buffer szie must >= 20
 	mov	edx,	0x534D4150 ; signature "SMAP" used by the BIOS to verify the caller is requesting the system map info to be returned by
 	int	15h
 	jc	_Get_Mem_Fail
+    cmp eax, 0x534d4150
+    jne _Get_Mem_Fail
+    cmp ecx, 20
+    jb _Get_Mem_Fail
+    inc word [es:MemoryStructCountAddress]
 	add	di,	20
 
 	cmp	ebx,	0; returned previous memory map if first call it return 0
@@ -453,6 +465,16 @@ Label_SVGA_Mode_Info_Finish:
 	mov	bp,	GetSVGAModeInfoOKMessage
 	int	10h
 
+; 只交接实际选定的模式，而不是让内核猜测分辨率/显存地址。
+    xor ax, ax
+    mov es, ax
+    mov di, 0x8200
+    mov cx, 0x180
+    mov ax, 0x4f01
+    int 0x10
+    cmp ax, 0x004f
+    jne Label_SET_SVGA_Mode_VESA_VBE_FAIL
+
 ;=======	set the SVGA mode(VESA VBE)
 
 	mov	ax,	4F02h
@@ -498,6 +520,13 @@ GO_TO_TMP_Protect:
 	jz	no_support
 
 ;=======	init temporary page table 0x90000
+    ; 页表项为 64 位，不能只写低 32 位并假定其余项已由 BIOS 清零。
+    ; ES 现在是平坦 32 位数据段，清零 PML4/PDPT/PDE 共 3 个 4 KiB 页。
+    cld
+    xor eax, eax
+    mov edi, 0x90000
+    mov ecx, 3 * 4096 / 4
+    rep stosd
 
 	mov	dword	[0x90000],	0x91007
 	mov	dword	[0x90800],	0x91007		

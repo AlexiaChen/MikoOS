@@ -1,7 +1,8 @@
 plugin_ctrl: unmapped=1, biosdev=1, speaker=1, extfpuirq=1, parallel=1, serial=1, iodebug=1
 config_interface: textconfig
 #display_library: x
-romimage: file=/usr/share/bochs/BIOS-bochs-latest
+# 本机 Bochs 2.7 的 latest BIOS 在 rombios32 阶段异常；legacy 已通过启动检查。
+romimage: file=/usr/share/bochs/BIOS-bochs-legacy
 megs: 2048
 vgaromimage: file=/usr/share/vgabios/vgabios.bin
 floppya: 1_44="bin/boot.img", status=inserted, write_protected=0
