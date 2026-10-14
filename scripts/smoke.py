@@ -1,35 +1,107 @@
 #!/usr/bin/env python3
-"""实现完成后验证真实软盘启动；在最终停机函数处断点并退出 Bochs。"""
+"""验证软盘启动/故障/键盘；在输入等待或最终停机边界退出 Bochs。"""
 import argparse
 from pathlib import Path
+import re
+import socket
+import struct
 import subprocess
+import time
+
+
+def wait_for_marker(process, output, marker, deadline):
+    while time.monotonic() < deadline:
+        if marker in output.read_text(errors="replace"):
+            return
+        if process.poll() is not None:
+            raise RuntimeError(f"Bochs exited before {marker!r}")
+        time.sleep(0.02)
+    raise TimeoutError(f"waiting for {marker!r}")
+
+
+def receive_exact(client, count):
+    data = bytearray()
+    while len(data) < count:
+        chunk = client.recv(count - len(data))
+        if not chunk:
+            raise RuntimeError("RFB disconnected during handshake")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def inject_keyboard(process, output, deadline):
+    # 只向本次模拟器发送输入，不在内核注入字节或用软件 INT 冒充真实 IRQ1。
+    wait_for_marker(process, output, "PS/2 keyboard ready:", deadline)
+    log = Path("bin/bochs-smoke.log").read_text(errors="replace")
+    match = re.search(r"listening for connections on port (\d+)", log)
+    if not match:
+        raise RuntimeError("cannot find this Bochs RFB port")
+    client = socket.create_connection(("127.0.0.1", int(match[1])), timeout=3)
+    try:
+        version = receive_exact(client, 12)
+        if not version.startswith(b"RFB 003."):
+            raise RuntimeError(f"unsupported RFB version: {version!r}")
+        # 使用 RFB 3.3 的无认证握手。无需请求画面更新，键盘输入与 32 bpp 显示无关。
+        client.sendall(b"RFB 003.003\n")
+        if receive_exact(client, 4) != struct.pack("!I", 1):
+            raise RuntimeError("expected local RFB None security")
+        client.sendall(b"\x01")  # ClientInit: shared
+        header = receive_exact(client, 24)
+        name_length = struct.unpack("!I", header[20:24])[0]
+        if name_length > 4096:
+            raise RuntimeError("invalid RFB server name length")
+        receive_exact(client, name_length)
+        for key, down, scan in [("a", 1, 0x1e), ("a", 0, 0x9e),
+                                ("b", 1, 0x30), ("b", 0, 0xb0)]:
+            client.sendall(struct.pack("!BBHI", 4, down, 0, ord(key)))
+            # 逐个等实际 IRQ1 消费结果，不以固定延迟或宿主 send 成功判定接收成功。
+            wait_for_marker(process, output, f"Keyboard scan byte: {scan:#04x}", deadline)
+        return client
+    except BaseException:
+        client.close()
+        raise
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check"])
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check"])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
+    expecting_fault = args.expect in ("fault-divide", "fault-page")
+    boundary = "kernel_halt" if expecting_fault or args.expect == "keyboard-check" else "kernel_keyboard_wait"
     address = next(line.split()[0] for line in symbols.splitlines()
-                   if line.split()[-1] == "kernel_halt")
-    # CPU 真正执行到 Rust 停机边界才退出，不以启动后的固定延迟判定成功。
+                   if line.split()[-1] == boundary)
+    # 普通内核现在持续接收输入：到达等待入口才退出。键盘检查须收到四个字节才停机。
     Path("bin/smoke.rc").write_text(f"lb 0x{address}\nc\nq\n")
     output = Path("bin/smoke-output.log")
+    client = None
     try:
         with output.open("w") as stream:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 ["bochs", "-q", "-f", "conf/smoke-bochsrc", "-rc", "bin/smoke.rc"],
                 stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT,
-                timeout=45, check=False,
             )
-    except subprocess.TimeoutExpired:
-        raise SystemExit("FAIL: Bochs did not reach kernel_halt within 45s; inspect bin/smoke-output.log and bin/bochs-smoke.log")
+            try:
+                deadline = time.monotonic() + 45
+                if args.expect == "keyboard-check":
+                    client = inject_keyboard(process, output, deadline)
+                returncode = process.wait(timeout=max(0.01, deadline - time.monotonic()))
+            except BaseException:
+                process.kill()
+                process.wait()
+                raise
+    except (subprocess.TimeoutExpired, TimeoutError, OSError, RuntimeError) as error:
+        raise SystemExit(f"FAIL: {error}; inspect bin/smoke-output.log and bin/bochs-smoke.log") from error
+    finally:
+        if client:
+            client.close()
     text = output.read_text(errors="replace")
     required = ["VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
                 "Physical page allocation/read-write/free OK",
                 "8259A ready: vectors=0x20..0x2f, all IRQs masked",
                 "PIT IRQ0 delivered twice; PIC EOI and IRETQ return OK",
+                "PS/2 keyboard ready: IRQ1, translated set 1 scan bytes",
                 "MikoOS Rust kernel ready"]
     if args.expect == "fault-divide":
         required += ["EXCEPTION 0 (divide error) ERROR=0x0000000000000000"]
@@ -40,6 +112,9 @@ def main() -> None:
         required += ["Page allocator checks OK: cross-word, reuse, fragmentation, exhaustion;"]
     elif args.expect == "irq-check":
         required += ["IRQ context checks OK: GPRs, RFLAGS, RSP; software IRQ7/15 spurious paths"]
+    elif args.expect == "keyboard-check":
+        required += ["Keyboard queue checks OK: wraparound, FIFO, overflow",
+                     "Keyboard IRQ1 checks OK: a make/break, b make/break; no drops/errors"]
     required += [f"Breakpoint 1, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]
@@ -49,14 +124,13 @@ def main() -> None:
     missing = [marker for marker in required if marker not in text]
     errors = [line for line in text.splitlines() if "PANIC:" in line] + unexpected_reports
     exceptions = [line for line in text.splitlines() if line.startswith("EXCEPTION ")]
-    expecting_fault = args.expect in ("fault-divide", "fault-page")
     if not expecting_fault and exceptions:
         errors.extend(exceptions)
     if expecting_fault and len(exceptions) != 1:
         errors.append(f"expected one exception, got {len(exceptions)}")
-    if result.returncode or missing or errors:
+    if returncode or missing or errors:
         print(text[-6000:])
-        raise SystemExit(f"FAIL: exit={result.returncode}, missing={missing}, errors={errors}")
+        raise SystemExit(f"FAIL: exit={returncode}, missing={missing}, errors={errors}")
     suffix = args.expect or "normal"
     Path(f"bin/smoke-{suffix}.log").write_text(text)
     Path(f"bin/bochs-{suffix}.log").write_text(bochs_log)
@@ -64,7 +138,7 @@ def main() -> None:
     print(text[start:].split("Next at")[0].strip())
     if gui_reports:
         print("RFB limitation: 32 bpp display unavailable; CPU/MMIO/log verification only")
-    print(f"PASS: Bochs {args.expect or 'normal'} boot reached kernel_halt")
+    print(f"PASS: Bochs {args.expect or 'normal'} boot reached {boundary}")
 
 
 if __name__ == "__main__":

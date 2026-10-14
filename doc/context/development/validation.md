@@ -123,3 +123,48 @@ MikoOS Rust kernel ready
 伪中断只通过软件 INT 模拟 ISR 为空的处理分支，未验证电气级伪请求。
 未做嵌套中断、SMP、APIC、IRQ 内存分配、SIMD/FPU 状态保存、键盘/RTC/磁盘中断、
 时间精度或持续运行性能验证。无桌面 smoke 不证明 GUI 呈现，亦未做真机验证。
+
+## 2026-10-14：第 4 章 4-10 键盘中断
+
+上一阶段外部中断已创建本地提交 `2774174`。随后对照父目录原版 4-10 的 IRQ1/0x60 实验，
+实现 PS/2 扫描码捕获；没有修改参考项目。环境沿用 Rust 1.97.1、Bochs 2.7、legacy BIOS、2 GiB RAM。
+
+已实际执行：
+
+- 普通、keyboard-check、irq-check、memory-check、fault-divide、fault-page 六种 `make check` 均通过。
+- 六种 `make smoke` 均成功构建并通过 FAT12 检查。普通/IRQ/故障内核 53,488 字节，
+  keyboard-check 内核 57,632 字节，memory-check 内核 61,744 字节；Loader 2,301 字节，镜像 1,474,560 字节。
+- 普通、irq-check、memory-check 在 `kernel_keyboard_wait` 断点退出，证明初始化进入接收边界。
+  新增 8042 有限轮询、旧输出排空、PS/2 ACK、扫描集配置与 IRQ1 开放流程完成。
+- keyboard-check：局部队列验证 FIFO、环绕和满时丢新字节；宿主从本次 Bochs 日志发现 RFB 端口，
+  完成无认证握手，通过 KeyEvent 依次发送 a 按下/松开、b 按下/松开。
+  内核收到 1e、9e、30、b0，IRQ 分发每次确认 ISR1 在服务，消费 8042 字节后 EOI 并确认 ISR1 清零；
+  队列零残留、零丢失、零错误，随后全屏蔽并到达 `kernel_halt`。
+- IRQ GPR/RFLAGS/RSP 恢复仍通过；物理页检查恢复到 1023 个空闲页；
+  #DE/#PF 向量与错误码仍正确，#PF CR2 仍为 `0xffff80000aa00000`。
+- 最后执行普通 `make smoke`，恢复并验证默认交互镜像；普通内核现为持续等待输入，
+  自动检查到等待入口后退出模拟器，不再把普通内核描述为初始化后最终停机。
+- Python 语法、文档链接、六份保存日志、精确输入序列与 `git diff --check` 通过；
+  当前 ELF 无未解析符号，入口仍为 `0xffff800000100000`，普通日志断点与当前等待符号一致。
+
+关键输入输出（`bin/smoke-keyboard-check.log`）：
+
+```text
+Keyboard queue checks OK: wraparound, FIFO, overflow
+PS/2 keyboard ready: IRQ1, translated set 1 scan bytes
+MikoOS Rust kernel ready
+Keyboard scan byte: 0x1e
+Keyboard scan byte: 0x9e
+Keyboard scan byte: 0x30
+Keyboard scan byte: 0xb0
+Keyboard IRQ1 checks OK: a make/break, b make/break; no drops/errors
+```
+
+模拟器证据在 `bin/bochs-keyboard-check.log`，其余五种日志独立保存；均不提交。
+初次普通 smoke 仍因沙箱禁止 RFB 创建本地套接字而失败，允许模拟器运行后上述检查通过。
+
+普通配置 `_end=0xffff800000134000`、元数据末端 `0xffff800000149a00`，
+仍完全在保留的首个 2 MiB 页内。VNC 只发送输入，不请求画面更新；未验证 GUI 可视呈现。
+实际输入只覆盖模拟 PS/2 的 a/b 按下与松开；未验证扩展键、组合键、字符转换、真实队列满、
+ACK 超时/RESEND、坏数据、辅助端口、初始化时按键干扰、USB/真机或其他 BIOS/控制器。
+普通驱动不解释扫描码序列，缺失字节后的解析恢复和更完善的设备协议留给后续章节。

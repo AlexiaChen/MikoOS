@@ -2,10 +2,10 @@
 //!
 //! 异常来自当前指令的执行，中断则可在两条指令之间异步到来。异常诊断可以停机，
 //! 设备 IRQ 必须能回到被打断的位置，不能依赖普通函数的 RET 或调用者保存寄存器。
-//! 本节只开放传统 PIT 的 IRQ0，收到两次后关闭演示；没有时钟服务或任务调度。
+//! 先用 PIT IRQ0 完成两次交付演示，再开放键盘 IRQ1；没有时钟服务或任务调度。
 mod pic;
 
-use crate::{arch, console, kprint, trap, trap::InterruptFrame};
+use crate::{arch, console, keyboard, kprint, trap, trap::InterruptFrame};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 static TIMER_IRQS: AtomicUsize = AtomicUsize::new(0);
@@ -70,6 +70,23 @@ pub unsafe fn demonstrate_timer() {
     );
 }
 
+/// # Safety
+/// 单核 IF=0，键盘初始化和 IRQ0 演示均已完成，主流程准备接收键盘字节。
+pub unsafe fn enable_keyboard() {
+    assert!(!arch::interrupts_enabled());
+    // SAFETY: 控制器命令应答已消费，IRQ1 处理函数会先读设备数据再发 PIC EOI。
+    unsafe { pic::unmask_keyboard() }
+}
+
+/// # Safety
+/// IF=0 或不可嵌套 IRQ 内调用，当前执行流独占 PIC 配置。
+#[cfg(feature = "keyboard-check")]
+pub unsafe fn stop_keyboard_check() {
+    assert!(!arch::interrupts_enabled());
+    // SAFETY: 检查完毕后屏蔽所有普通 IRQ，不留下继续执行的设备处理窗口。
+    unsafe { pic::mask_all() }
+}
+
 #[unsafe(no_mangle)]
 extern "C" fn irq_dispatch(frame: &InterruptFrame) {
     assert!(!arch::interrupts_enabled(), "IRQ handler must not nest");
@@ -90,17 +107,23 @@ extern "C" fn irq_dispatch(frame: &InterruptFrame) {
         }
         // 软件 INT 同样能查 IDT，却没有 PIC 的应答/ISR 周期，不能用它证明外部
         // IRQ 已工作。显式核对 ISR 再计数，确保本演示收到的是控制器交付的请求。
-        assert_eq!(irq, 0, "device IRQ has no driver yet");
-        assert_ne!(pic::in_service() & 1, 0, "IRQ0 must come from PIC");
+        assert!(irq <= 1, "device IRQ has no driver yet");
+        assert_ne!(pic::in_service() & (1 << irq), 0, "IRQ must come from PIC");
         // 只有单核处理函数写计数，主流程关中断时读取；这里只传递计数本身，
         // 不靠它发布其他内存内容，所以 Relaxed 足够。原子类型也避免 static mut 数据竞争。
-        let count = TIMER_IRQS.fetch_add(1, Ordering::Relaxed) + 1;
-        assert!(count <= 2);
-        if count == 2 {
-            pic::mask_all();
+        if irq == 0 {
+            let count = TIMER_IRQS.fetch_add(1, Ordering::Relaxed) + 1;
+            assert!(count <= 2);
+            if count == 2 {
+                pic::mask_all();
+            }
+        } else {
+            // EOI 只结束 PIC 的服务，不能替键盘清空输出缓冲。必须先读走 0x60
+            // 中的数据，让设备撤销请求，之后的新字节才能形成新的 IRQ 边沿。
+            keyboard::on_interrupt();
         }
         pic::end_of_interrupt(irq);
-        assert_eq!(pic::in_service() & 1, 0, "EOI must clear ISR0");
+        assert_eq!(pic::in_service() & (1 << irq), 0, "EOI must clear ISR");
     }
     // 不在高频 IRQ 路径输出文字；主流程恢复后再报告，以免打断同一条日志或持锁重入。
 }

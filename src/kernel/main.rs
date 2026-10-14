@@ -1,4 +1,4 @@
-//! 第 4 章内核主程序：图形输出 → 异常向量 → 物理页描述与分配。
+//! 第 4 章内核主程序：图形输出 → 异常 → 物理内存 → 外部中断 → 键盘扫描码。
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -8,6 +8,7 @@ mod console;
 mod font;
 mod gate;
 mod interrupt;
+mod keyboard;
 mod memory;
 mod trap;
 
@@ -67,13 +68,14 @@ extern "C" fn Start_Kernel() -> ! {
     unsafe {
         memory::verify()
     };
-    // 所有分配操作仍在 IF=0 时完成，之后才开放本节唯一支持的设备 IRQ0。
+    // 所有分配操作仍在 IF=0 时完成，之后才依次开放已支持的 IRQ0/IRQ1。
     // SAFETY: IDT/TSS/内存均已初始化；单核、关中断，无资源借用跨越等待窗口。
     unsafe {
         interrupt::init();
         #[cfg(feature = "irq-check")]
         interrupt::verify_context();
         interrupt::demonstrate_timer();
+        keyboard::init();
     }
     kprint!(console::GREEN, "MikoOS Rust kernel ready\n");
 
@@ -87,7 +89,8 @@ extern "C" fn Start_Kernel() -> ! {
     unsafe {
         core::arch::asm!("mov rax, [rax]", inout("rax") 0xffff_8000_0aa0_0000u64 => _, options(nostack));
     }
-    arch::halt()
+    // SAFETY: 键盘初始化完成，IF=0，单核；主循环不会持有队列引用跨越中断窗口。
+    unsafe { keyboard::run() }
 }
 
 #[panic_handler]

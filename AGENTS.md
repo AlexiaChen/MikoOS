@@ -38,6 +38,7 @@ doc/context/
 │   ├── console.md               # 帧缓冲、字体与格式化输出
 │   ├── exceptions.md            # GDT/IDT/TSS、异常栈与 ABI
 │   ├── interrupts.md            # 8259A/PIT、IRQ 保存/返回、中断屏蔽
+│   ├── keyboard.md              # PS/2/8042、IRQ1、扫描码字节队列
 │   └── memory.md                # E820、2 MiB 页、位图与 Zone
 └── development/
     ├── README.md                # 日常实现与验证流程

@@ -67,6 +67,13 @@ pub unsafe fn unmask_timer() {
 }
 
 /// # Safety
+/// PIC 和键盘控制器均已初始化，IF=0；IRQ1 处理函数已就绪，IRQ0 演示已经结束。
+pub unsafe fn unmask_keyboard() {
+    // SAFETY: 0xfd 仅将主片 bit1 清零；时钟、级联和所有其他设备保持屏蔽。
+    unsafe { arch::out8(MASTER_DATA, 0xfd) }
+}
+
+/// # Safety
 /// 独占 PIC 端口访问；读取命令端口前先用 OCW3 明确选择 ISR。
 pub unsafe fn in_service() -> u16 {
     // SAFETY: OCW3 0x0b 的读寄存器选择是 ISR，不是默认的 IRR；只读状态不清除位。
