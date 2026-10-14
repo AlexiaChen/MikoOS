@@ -22,6 +22,7 @@ conf/win-bochsrc 是历史参考配置，没有在 Windows 上验证 Rust 构建
 
 ```sh
 make smoke
+make smoke FEATURES=memory-check
 make smoke FEATURES=fault-divide
 make smoke FEATURES=fault-page
 make                  # 演示后恢复正常启动镜像
@@ -29,6 +30,12 @@ make                  # 演示后恢复正常启动镜像
 
 smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本地 VNC 监听端口），
 检查 0xe9 输出中的阶段标记、内存一致性与故障结果；无客户端也能运行。
+普通启动还会进行物理页分配、已映射页实际读写和释放演示。
+`memory-check` 在此之后追加实现完成后的分配器验证：零/超大请求、65 页跨位图字、
+不重叠、释放复用、映射区碎片和耗尽、整段 RAM 耗尽及状态恢复。它不主动触发 CPU 异常。
+扩展验证针对当前 2 GiB Bochs 的单个无预留完整 RAM Zone，并需 65 个连续空闲页和至少
+两个映射区空闲页；不满足前提会明确 panic，不能用此检查宣称任意 E820 布局均已验证。
+每次 smoke 只指定上述单个 feature；扩展检查结束归还全部分配页。
 网络沙箱可能禁止本地套接字，需要允许模拟器运行；这不等于内核故障。
 本机 Bochs 2.7 配套 latest BIOS 在 rombios32 阶段（进入引导扇区前）异常，
 因此交互与 smoke 均使用系统自带 BIOS-bochs-legacy。

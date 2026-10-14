@@ -1,4 +1,4 @@
-//! 第 4 章内核主程序：图形输出 → 异常向量 → 初级物理内存描述。
+//! 第 4 章内核主程序：图形输出 → 异常向量 → 物理页描述与分配。
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -32,6 +32,35 @@ extern "C" fn Start_Kernel() -> ! {
     kprint!(console::RED, "init memory\n");
     // SAFETY: Loader 已交接 E820，链接器定义的 _end 之后是初始直映 RAM。
     unsafe { memory::init() };
+    // 分配得到的是物理页所有权，不是一个 Rust 引用。这里先各取一页，确认
+    // 两种区域选择不会把同一页重复分配，再归还；正常启动不保留演示用的 RAM。
+    // SAFETY: 内存初始化完成，仍为单核关中断；期间没有其他内存分配使用者。
+    unsafe {
+        let mapped = memory::allocate_pages(memory::AllocationArea::Mapped, 1)
+            .expect("no free bootstrap-mapped page");
+        let physical =
+            memory::allocate_pages(memory::AllocationArea::Any, 1).expect("no free physical page");
+        assert_ne!(mapped.physical_address(), physical.physical_address());
+        // CPU 已能通过高半区直映访问 mapped；只对明确映射的独占页做实际读写。
+        // volatile 保证访问真的发生，避免编译器用常量替代，掩盖页表地址错误。
+        let first = (memory::PAGE_OFFSET + mapped.physical_address()) as *mut u64;
+        let last = first.byte_add(mapped.page_count() * memory::PAGE_2M_SIZE - 8);
+        first.write_volatile(0x4d49_4b4f_4f53_0001);
+        last.write_volatile(0x4d49_4b4f_4f53_0002);
+        assert_eq!(first.read_volatile(), 0x4d49_4b4f_4f53_0001);
+        assert_eq!(last.read_volatile(), 0x4d49_4b4f_4f53_0002);
+        memory::free_pages(physical);
+        memory::free_pages(mapped);
+    }
+    kprint!(
+        console::GREEN,
+        "Physical page allocation/read-write/free OK\n"
+    );
+    #[cfg(feature = "memory-check")]
+    // SAFETY: 同上；扩展检查只修改分配元数据，并在完成时归还全部页。
+    unsafe {
+        memory::verify()
+    };
     kprint!(console::GREEN, "MikoOS Rust kernel ready\n");
 
     #[cfg(feature = "fault-divide")]

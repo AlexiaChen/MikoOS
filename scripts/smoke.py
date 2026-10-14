@@ -7,7 +7,7 @@ import subprocess
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page"])
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check"])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
     address = next(line.split()[0] for line in symbols.splitlines()
@@ -27,12 +27,15 @@ def main() -> None:
     text = output.read_text(errors="replace")
     required = ["VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
+                "Physical page allocation/read-write/free OK",
                 "MikoOS Rust kernel ready"]
     if args.expect == "fault-divide":
         required += ["EXCEPTION 0 (divide error) ERROR=0x0000000000000000"]
     elif args.expect == "fault-page":
         required += ["EXCEPTION 14 (page fault) ERROR=0x0000000000000000",
                      "CR2=0xffff80000aa00000", "instruction_fetch=false"]
+    elif args.expect == "memory-check":
+        required += ["Page allocator checks OK: cross-word, reuse, fragmentation, exhaustion;"]
     required += [f"Breakpoint 1, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]
@@ -42,9 +45,10 @@ def main() -> None:
     missing = [marker for marker in required if marker not in text]
     errors = [line for line in text.splitlines() if "PANIC:" in line] + unexpected_reports
     exceptions = [line for line in text.splitlines() if line.startswith("EXCEPTION ")]
-    if not args.expect and exceptions:
+    expecting_fault = args.expect in ("fault-divide", "fault-page")
+    if not expecting_fault and exceptions:
         errors.extend(exceptions)
-    if args.expect and len(exceptions) != 1:
+    if expecting_fault and len(exceptions) != 1:
         errors.append(f"expected one exception, got {len(exceptions)}")
     if result.returncode or missing or errors:
         print(text[-6000:])

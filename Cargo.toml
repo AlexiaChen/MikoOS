@@ -14,6 +14,7 @@ bench = false
 default = []
 fault-divide = []
 fault-page = []
+memory-check = []
 
 [profile.dev]
 panic = "abort"

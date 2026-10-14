@@ -1,6 +1,10 @@
 //! 第 4 章初级内存管理：E820 → 2 MiB 物理页 → 位图/Page/Zone。
-//! 当前只建立描述与预留记录，不提供分配器，也不把所有 RAM 加入页表。
+//! 建立描述与预留记录，提供连续物理页分配；不会把所有 RAM 加入页表。
+mod allocator;
 use crate::{arch, console, kprint};
+#[cfg(feature = "memory-check")]
+pub use allocator::verify;
+pub use allocator::{AllocationArea, allocate_pages, free_pages};
 use core::{
     mem::size_of,
     ptr::{addr_of, addr_of_mut, null_mut, read_unaligned},
@@ -53,6 +57,9 @@ impl E820Entry {
         if self.kind != 1 || self.length == 0 {
             return None;
         }
+        // BIOS 描述的是字节区间，内核这一节管理的是 2 MiB 整页。两端向内取整，
+        // 宁可暂不使用不足一页的 RAM，也不能把同一页中的 BIOS/设备保留字节分配出去。
+        // 2 MiB 是本节页表使用的大页粒度，不意味着 x86-64 只能使用这种页大小。
         let start = align_up(self.address as usize, PAGE_2M_SIZE);
         let end = self.end() & !(PAGE_2M_SIZE - 1);
         (end > start).then_some((start, end))
@@ -61,6 +68,8 @@ impl E820Entry {
 const _: () = assert!(size_of::<E820Entry>() == 20);
 
 /// 与原实现一样，描述符按物理页号索引，空洞也占槽位，但永不标为空闲。
+/// 位图解决“在哪里找空闲页”，这里解决“找到的页归谁、是否仍被使用”。将两者
+/// 分开，既保持紧凑的搜索信息，又能让释放操作核对页的身份，而不是只翻转一个位。
 #[repr(C)]
 pub struct Page {
     zone: *mut Zone,
@@ -171,9 +180,8 @@ impl MemoryDescriptor {
         }
     }
 
-    /// 后续分配章节使用；预留内核页及无 Zone 的物理空洞不能被释放。
-    #[allow(dead_code)]
-    pub unsafe fn clean_page(&mut self, index: usize) {
+    /// 分配器归还引用；预留内核页及无 Zone 的物理空洞不能被释放。
+    unsafe fn clean_page(&mut self, index: usize) {
         assert!(index < self.bits_size);
         // SAFETY: 调用者独占描述符，Page/Zone 指针来自本模块已验证的元数据区。
         unsafe {
@@ -320,6 +328,8 @@ pub unsafe fn init() {
             }
         }
         // 整个 [0, end_of_struct) 都保留，包括 BIOS、Loader、内核、栈及元数据。
+        // 页描述符和位图本身也住在 RAM 中：若忘记保护“管理内存所用的内存”，
+        // 分配器就会把自己的账本交给调用者覆盖。末端即使只占了半页，也必须整页保留。
         // 页 0 是混合区域，不能假装属于从 2 MiB 开始的第一个 Zone。
         let reserved_pages = physical_metadata_end.div_ceil(PAGE_2M_SIZE);
         for index in 0..reserved_pages {
