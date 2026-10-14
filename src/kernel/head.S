@@ -80,6 +80,8 @@ GDT_POINTER:
 
 .section .bss.stack,"aw",@nobits
 .balign 16
+.globl boot_stack
 boot_stack:
     .skip 65536
+.globl boot_stack_top
 boot_stack_top:

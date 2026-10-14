@@ -17,6 +17,7 @@ fault-page = []
 memory-check = []
 irq-check = []
 keyboard-check = []
+task-check = []
 
 [profile.dev]
 panic = "abort"

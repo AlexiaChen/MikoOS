@@ -1,4 +1,4 @@
-//! 第 4 章内核主程序：图形输出 → 异常 → 物理内存 → 外部中断 → 键盘扫描码。
+//! 第 4 章内核主程序：图形输出 → 异常 → 内存 → IRQ → 内核线程 → 键盘接收。
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -10,12 +10,16 @@ mod gate;
 mod interrupt;
 mod keyboard;
 mod memory;
+mod task;
 mod trap;
 
 use core::{arch::global_asm, panic::PanicInfo};
 
 // 在 Rust 构建中直接汇编边界代码，不再需要 C 预处理器或 GCC。
 global_asm!(include_str!("head.S"), options(att_syntax));
+global_asm!(include_str!("task_switch.S"), options(att_syntax));
+#[cfg(feature = "task-check")]
+global_asm!(include_str!("task_check.S"), options(att_syntax));
 global_asm!(
     concat!(include_str!("entry.S"), include_str!("irq.S")),
     options(att_syntax)
@@ -75,6 +79,8 @@ extern "C" fn Start_Kernel() -> ! {
         #[cfg(feature = "irq-check")]
         interrupt::verify_context();
         interrupt::demonstrate_timer();
+        // 内核线程演示全程 IF=0，收回线程页之后再初始化并开放键盘。
+        task::demonstrate();
         keyboard::init();
     }
     kprint!(console::GREEN, "MikoOS Rust kernel ready\n");

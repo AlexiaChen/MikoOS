@@ -14,7 +14,8 @@ Start_Kernel：所有内存初始化与分配检查结束，IF 仍为 0
       → PIT 请求 → 主 PIC ISR0 置位 → 向量 0x20 → CPU 中断门清 IF 并切到 IST3
       → irq_common 保存全部 GPR → irq_dispatch 核对 ISR0、计数、发送 EOI
       → 恢复 GPR → IRETQ 恢复原 RIP/CS/RFLAGS/RSP/SS → 从 HLT 后继续
-  → 收到两次后全屏蔽、IF=0 → keyboard::init 只开放 IRQ1 → ready
+  → 收到两次后全屏蔽、IF=0 → task::demonstrate 主动换栈并回收线程页
+  → keyboard::init 只开放 IRQ1 → ready
   → 可选故障演示（kernel_halt）或 keyboard::run 持续等待并消费输入
 ```
 
@@ -59,6 +60,8 @@ IRETQ 恢复 CPU 帧，包括被打断时的 IF/DF；裸机目标无 red zone，
 避免事件先处理完才睡下的竞态，返回时 CLI。初始化及内存分配阶段均 IF=0；
 键盘主流程在 IF=0 下消费输入和打印，队列为空后才开放等待窗口。
 没有锁、SMP、可嵌套 IRQ 或中断中分配内存支持；未知真实设备 IRQ 直接诊断停机。
+task-check 会在 init 的独立任务栈上通过软件 IRQ7 走 IST3/IRETQ，确认返回原任务栈；
+不据此声称已经在任务中验证真实设备 IRQ 或抢占调度，详见 [任务](tasks.md)。
 
 ## 专用验证
 

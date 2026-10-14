@@ -3,6 +3,8 @@
 源码：`gate.rs`、`trap.rs`、`entry.S`，CPU 指令在 `arch.rs`。
 GDT 由 head.S 加载；Rust 写入第 8~9 槽的 16 字节 TSS 描述符，初始化 TSS 后执行 `ltr 0x40`。
 TSS 长度 104 字节，用未对齐写入遵守硬件偏移；I/O bitmap offset=104，当前无权限位图。
+RSP0 初始化为 head.S 导出的 boot_stack_top，主动任务切换时只更新 RSP0 为下一任务栈顶；
+IST1/2/3 保持独立。RSP0 的读回不等于已验证用户态特权级转换，详见 [任务](tasks.md)。
 
 所有 IDT 条目大小 16 字节，CS=0x08，0~31 对应各 CPU 异常。trap::init 初始给其他条目
 安装通用 fatal 入口；interrupt::init 随后把 32~47 替换为 PIC IRQ 门，其余保持 fatal。

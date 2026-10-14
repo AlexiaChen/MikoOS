@@ -26,6 +26,7 @@ make smoke
 make smoke FEATURES=memory-check
 make smoke FEATURES=irq-check
 make smoke FEATURES=keyboard-check
+make smoke FEATURES=task-check
 make smoke FEATURES=fault-divide
 make smoke FEATURES=fault-page
 make                  # 演示后恢复正常启动镜像
@@ -34,11 +35,15 @@ make                  # 演示后恢复正常启动镜像
 smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本地 VNC 监听端口），
 检查 0xe9 输出中的阶段标记、内存一致性与故障结果；无客户端也能运行。
 普通启动还会进行物理页分配、已映射页实际读写和释放演示。
-随后初始化 PIC，仅开放 PIT 的 IRQ0 接收两次真实中断，再全屏蔽并关中断初始化 8042/PS/2。
-键盘就绪后仅开放 IRQ1，普通内核持续等待并显示扫描码。普通/memory-check/irq-check 的 smoke
+随后初始化 PIC，仅开放 PIT 的 IRQ0 接收两次真实中断，再全屏蔽并关中断运行 init 内核线程。
+线程主动让出、恢复、退出并回收整页之后，初始化 8042/PS/2，仅开放 IRQ1。
+普通内核持续等待并显示扫描码。普通/memory-check/irq-check/task-check 的 smoke
 在 kernel_keyboard_wait 入口退出；故障演示和有限 keyboard-check 在 kernel_halt 退出。
 `irq-check` 追加软件 INT 的通用寄存器/标志/栈恢复及伪 IRQ7/15 分支检查；
 真正外部交付仍由 PIT 验证。无时钟服务、调度器或 APIC 支持。
+`task-check` 使用两个任务各不相同的 callee-saved 寄存器哨兵，检查三次暂停/恢复的寄存器、RSP 和栈数据；
+另在 init 栈上走软件 IRQ7 的 IST 返回。所有配置均检查参数/进度/退出码、TSS/CR3/栈边界和任务页回收。
+没有抢占、用户态或通用多任务调度；检查通过后继续普通键盘等待。
 `keyboard-check` 验证队列 FIFO/环绕/溢出，并由宿主经本次 Bochs 的本机 VNC 发送 a/b 按下与松开，
 核对 IRQ1 收到 1e/9e/30/b0 后停机。RFB 握手与按键发送由 Python 标准库完成，无额外依赖；
 不请求 framebuffer 更新，不把发送成功当作接收成功，每个事件等待内核日志确认。
@@ -55,5 +60,5 @@ smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本�
 所以 smoke 能验证 CPU 执行、MMIO 写入流程和日志，不能证明 GUI 实际呈现正确。
 交互 x 后端需要桌面环境，其可视效果尚未验证。
 
-模拟器日志和 smoke 输出写 bin/，不提交；成功时按 normal/memory-check/irq-check/keyboard-check/fault-divide/fault-page 保存独立日志。失败时先查 bin/bochs-smoke.log 与 bin/smoke-output.log。
+模拟器日志和 smoke 输出写 bin/，不提交；成功时按 normal/memory-check/irq-check/keyboard-check/task-check/fault-divide/fault-page 保存独立日志。失败时先查 bin/bochs-smoke.log 与 bin/smoke-output.log。
 Rust panic、CPU 异常、BIOS/Loader 停住是不同层次，要按日志区分。

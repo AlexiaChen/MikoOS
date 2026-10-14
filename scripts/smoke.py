@@ -64,7 +64,7 @@ def inject_keyboard(process, output, deadline):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check"])
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check", "task-check"])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
     expecting_fault = args.expect in ("fault-divide", "fault-page")
@@ -101,6 +101,12 @@ def main() -> None:
                 "Physical page allocation/read-write/free OK",
                 "8259A ready: vectors=0x20..0x2f, all IRQs masked",
                 "PIT IRQ0 delivered twice; PIC EOI and IRETQ return OK",
+                "Kernel thread created: pid=1",
+                "init task is running, arg=0x000000000000000a",
+                "Bootstrap task resumed: init yielded",
+                "init task resumed after yielding",
+                "Kernel thread exit: pid=1 code=1",
+                "Kernel thread demo OK: yield, resume, exit=1; page reclaimed",
                 "PS/2 keyboard ready: IRQ1, translated set 1 scan bytes",
                 "MikoOS Rust kernel ready"]
     if args.expect == "fault-divide":
@@ -115,6 +121,8 @@ def main() -> None:
     elif args.expect == "keyboard-check":
         required += ["Keyboard queue checks OK: wraparound, FIFO, overflow",
                      "Keyboard IRQ1 checks OK: a make/break, b make/break; no drops/errors"]
+    elif args.expect == "task-check":
+        required += ["Task context checks OK: callee-saved GPRs, RSP, stack canaries; child IST return"]
     required += [f"Breakpoint 1, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]

@@ -58,3 +58,7 @@ Any 结果不能无条件加 PAGE_OFFSET 解引用；后续分页章节改变映
 读写后归还两页，打印 `Physical page allocation/read-write/free OK`。该启动演示需要至少两个
 可分配物理页，其中至少一个位于直映范围。扩展 `memory-check` 验证见
 [构建命令](../development/build.md) 与 [验证记录](../development/validation.md)。
+
+首个内核线程也通过 Mapped 分配一页，保存描述符/独立栈；凭据留在启动任务，
+只有返回启动栈并确认线程 Zombie 后才释放，再重新分配同一页确认可复用。
+线程仅用整页前 32 KiB，没有新增 SLAB/小块分配器；详见 [任务](tasks.md)。

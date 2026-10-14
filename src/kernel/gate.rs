@@ -1,5 +1,8 @@
 //! 64 位 IDT 门及 TSS。用明确的位域构造替代原 C 内联汇编宏。
-use core::{arch::asm, ptr::write_unaligned};
+use core::{
+    arch::asm,
+    ptr::{read_unaligned, write_unaligned},
+};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
@@ -54,6 +57,7 @@ static mut TSS: [u8; 104] = [0; 104];
 
 unsafe extern "C" {
     static mut GDT_Table: [u64; 10];
+    static boot_stack_top: u8;
 }
 
 pub unsafe fn init() {
@@ -71,6 +75,10 @@ pub unsafe fn init() {
         for offset in [4, 12, 20, 36, 52, 60, 68, 76, 84] {
             write_unaligned(tss.add(offset).cast::<u64>(), top);
         }
+        write_unaligned(
+            tss.add(4).cast::<u64>(),
+            core::ptr::addr_of!(boot_stack_top) as u64,
+        );
         write_unaligned(tss.add(44).cast::<u64>(), double_top); // IST2 专供 #DF
         write_unaligned(tss.add(52).cast::<u64>(), irq_top); // IST3 专供非嵌套 IRQ
         write_unaligned(tss.add(102).cast::<u16>(), 104); // 无 I/O 权限位图
@@ -82,6 +90,32 @@ pub unsafe fn init() {
         // GDT 索引 8 的选择子是 8*8=0x40；必须先写好 TSS，再加载 TR。
         asm!("ltr ax", in("ax") 0x40u16, options(nostack, preserves_flags));
     }
+}
+
+/// 更新当前任务的内核栈顶，只改 RSP0，不动独立的 IST1/2/3。
+/// 64 位 TSS 不替软件保存全部任务寄存器；RSP0 是将来从较低特权级进入内核时
+/// CPU 选择的栈。本节任务都在 ring0，真正的主动换栈仍由 task_switch.S 执行。
+///
+/// # Safety
+/// TSS 已初始化，单核 IF=0；stack_top 是有效、16 字节对齐且存活的内核栈顶。
+pub unsafe fn set_kernel_stack(stack_top: usize) {
+    assert!(!crate::arch::interrupts_enabled());
+    assert_eq!(stack_top % 16, 0);
+    // SAFETY: TSS RSP0 固定从偏移 4 开始，packed 地址必须未对齐写；其他字段保持不变。
+    unsafe {
+        write_unaligned(
+            core::ptr::addr_of_mut!(TSS)
+                .cast::<u8>()
+                .add(4)
+                .cast::<usize>(),
+            stack_top,
+        )
+    }
+}
+
+pub fn kernel_stack() -> usize {
+    // SAFETY: 单核只读已初始化 TSS；本节所有写入均在 IF=0 的任务切换阶段。
+    unsafe { read_unaligned(core::ptr::addr_of!(TSS).cast::<u8>().add(4).cast::<usize>()) }
 }
 
 const _: () = assert!(core::mem::size_of::<Gate>() == 16);

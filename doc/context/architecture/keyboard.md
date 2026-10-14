@@ -21,7 +21,7 @@
 ## 初始化前提与协议
 
 只支持本节传统 PC 的第一 PS/2 端口；不探测 ACPI 8042 标志，不提供 USB 键盘驱动。
-调用顺序为内存完成 → PIC 初始化/时钟演示完成、全屏蔽 IF=0 → keyboard::init。
+调用顺序为内存完成 → PIC 初始化/时钟演示完成 → 内核线程演示和回收、全屏蔽 IF=0 → keyboard::init。
 
 0x64 读状态、写控制器命令；0x60 读输出、写数据/参数。状态 bit0=输出满、bit1=输入满、
 bit5=辅助端口数据、bit6/7=传输错误。写之前等输入空，读之前等输出满，初始化轮询预算
@@ -50,7 +50,7 @@ arch 的等待汇编保留编译器内存屏障，中断返回后重新读取队
 ## 普通交互与自动验证
 
 普通镜像保持接收循环，`kernel_keyboard_wait` 是 STI/HLT 等待入口，不是最终关中断停机。
-普通、memory-check、irq-check 的 smoke 在此入口断点退出，证明初始化到达接收边界，
+普通、memory-check、irq-check、task-check 的 smoke 在此入口断点退出，证明初始化到达接收边界，
 不将这条检查当作真实按键交付。故障演示仍在 ready 之后触发，走 kernel_halt。
 
 `keyboard-check` 先用局部队列验证 FIFO、环绕和满队列丢新字节；宿主 scripts/smoke.py

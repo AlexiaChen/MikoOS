@@ -4,7 +4,7 @@ mod allocator;
 use crate::{arch, console, kprint};
 #[cfg(feature = "memory-check")]
 pub use allocator::verify;
-pub use allocator::{AllocationArea, allocate_pages, free_pages};
+pub use allocator::{AllocationArea, PageRun, allocate_pages, free_pages};
 use core::{
     mem::size_of,
     ptr::{addr_of, addr_of_mut, null_mut, read_unaligned},

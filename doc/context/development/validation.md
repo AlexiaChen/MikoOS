@@ -168,3 +168,49 @@ Keyboard IRQ1 checks OK: a make/break, b make/break; no drops/errors
 实际输入只覆盖模拟 PS/2 的 a/b 按下与松开；未验证扩展键、组合键、字符转换、真实队列满、
 ACK 超时/RESEND、坏数据、辅助端口、初始化时按键干扰、USB/真机或其他 BIOS/控制器。
 普通驱动不解释扫描码序列，缺失字节后的解析恢复和更完善的设备协议留给后续章节。
+
+## 2026-10-14：第 4 章 4-11 初始内核线程
+
+4-10 已创建本地提交 `454e801`，随后参考原版 `code/c04/4-11/kernel/{task.c,task.h,main.c}`
+实现首个内核线程；辅助核对原版 lib.h 与 Kernel.lds，没有修改父目录。
+环境仍为 Rust 1.97.1、Bochs 2.7、legacy BIOS、2 GiB RAM。
+
+已实际执行：
+
+- 普通、task-check、keyboard-check、irq-check、memory-check、fault-divide、fault-page 七种 `make check` 通过。
+- 七种 `make smoke` 构建/镜像检查通过。普通/task-check/irq-check/故障内核 61,768 字节，
+  keyboard-check 65,864 字节，memory-check 69,976 字节；Loader 2,301 字节，软盘 1,474,560 字节。
+- 普通演示在物理 2 MiB 页创建 pid1，描述符位于 `0xffff800000200000`，
+  栈范围 `0xffff800000201008..0xffff800000208000`；init 在独立栈上接收参数 10、让出、恢复、返回 1。
+  启动任务两次恢复均核对状态/进度，退出后确认 Zombie/退出码及边界哨兵完整。
+- 每次恢复核对实际 CPU RSP 在当前栈范围内、TSS.RSP0 读回和共享 CR3 正确；
+  返回启动栈后归还整页，重新申请命中同一物理页并再次归还，确认可复用。
+- task-check 为两个任务生成不同的 RBP/RBX/R12..R15 哨兵，核对三次完成返回的六个 GPR、
+  RSP 和栈局部哨兵；init 独立栈上软件 INT 0x27 通过 IST3/IRETQ 回到原任务栈。
+- keyboard-check 在任务演示/回收后仍经宿主 VNC 收到 1e/9e/30/b0，零丢失/错误；
+  IRQ 现场恢复仍通过，memory-check 仍恢复到 1023 个空闲页，#DE/#PF 结果与 CR2 保持正确。
+- 最后执行普通 `make smoke`，恢复并验证普通交互镜像，到 `kernel_keyboard_wait` 断点退出。
+- Python 语法、文档链接、七份日志中的任务执行顺序、精确键盘输入序列和 `git diff --check` 通过；
+  当前 ELF 无未解析符号，入口仍为 `0xffff800000100000`，普通日志断点匹配当前等待符号。
+
+task-check 的关键输出：
+
+```text
+Kernel thread created: pid=1, stack=0xffff800000201008..0xffff800000208000
+init task is running, arg=0x000000000000000a
+Bootstrap task resumed: init yielded
+init task resumed after yielding
+Kernel thread exit: pid=1 code=1
+Task context checks OK: callee-saved GPRs, RSP, stack canaries; child IST return
+Kernel thread demo OK: yield, resume, exit=1; page reclaimed
+PS/2 keyboard ready: IRQ1, translated set 1 scan bytes
+```
+
+证据保存在 `bin/smoke-task-check.log`、`bin/bochs-task-check.log`；其余六种路径也独立保存，不提交。
+首次沙箱内 Bochs 仍因 RFB 不能创建本地套接字失败，允许模拟器运行后通过。
+普通 `_end=0xffff800000136000`、元数据末端 `0xffff80000014ba00`，仍在已保留的首个 2 MiB 页内。
+
+边界：只有两个 ring0 执行流的显式主动交接，不是抢占调度或一般多线程压力验证。
+TSS 只核对内存中的 RSP0，没有执行/验证 ring3 特权转换；子栈 IRQ 测试是软件 INT，不是硬件抢占。
+未覆盖 SMP、NMI 读取任务状态、独立地址空间、FS/GS/TLS、SIMD/FPU、栈溢出注入或保护返回入口。
+边界哨兵不是 guard page；只使用 2 MiB 页前 32 KiB，没有小块分配器。GUI 呈现和真机仍未验证。
