@@ -9,11 +9,50 @@ pub fn debug_byte(byte: u8) {
     }
 }
 
+/// x86 的端口 I/O 与普通内存地址是两套空间。8259A/PIT 通过 IN/OUT 访问，
+/// 不是把 0x20 等数值转换成指针；volatile 内存访问也不能替代这些指令。
+///
+/// # Safety
+/// 当前处于 ring 0；调用者确认该端口对应的设备，以及写入对设备状态的影响。
+pub unsafe fn out8(port: u16, value: u8) {
+    // SAFETY: 设备协议由调用者保证。保留编译器内存屏障，避免把初始化内存的
+    // 写入排到设备使能之后；这不是 PCI/MMIO 的通用硬件屏障接口。
+    unsafe { asm!("out dx, al", in("dx") port, in("al") value, options(nostack, preserves_flags)) }
+}
+
+/// # Safety
+/// 当前处于 ring 0；调用者确认设备读取的副作用和协议状态。
+pub unsafe fn in8(port: u16) -> u8 {
+    let value;
+    // SAFETY: 调用者已确认端口可读及副作用；此处只负责产生一条 8 位 IN 指令。
+    unsafe { asm!("in al, dx", in("dx") port, out("al") value, options(nostack, preserves_flags)) }
+    value
+}
+
+pub fn interrupts_enabled() -> bool {
+    let flags: u64;
+    // SAFETY: 读取当前 RFLAGS 不改变中断开关；push/pop 成对且不覆盖调用者数据。
+    unsafe { asm!("pushfq", "pop {}", out(reg) flags, options(preserves_flags)) }
+    flags & (1 << 9) != 0
+}
+
+/// 开放一个中断等待窗口，返回时重新关中断。
+///
+/// # Safety
+/// 已安装有效 IDT/栈/处理函数，只开放已支持的 IRQ；调用时 IF=0，且没有持有
+/// 中断处理程序需要的独占资源。本节仅在所有内存初始化结束之后调用。
+pub unsafe fn wait_for_interrupt() {
+    // SAFETY: STI 后 CPU 延迟到下一条指令执行完才响应可屏蔽中断。因此 STI/HLT
+    // 必须放在同一汇编块：不会在“开中断”和“睡下”之间先处理完事件，再睡死。
+    // IRETQ 恢复 IF 后从 HLT 之后继续，CLI 让主流程能安全读取/结束教学演示。
+    unsafe { asm!("sti", "hlt", "cli", options(nostack)) }
+}
+
 #[unsafe(export_name = "kernel_halt")]
 #[inline(never)]
 pub fn halt() -> ! {
     loop {
-        // SAFETY: 本节无外部中断驱动，关中断后停机；NMI 唤醒时继续停机。
+        // SAFETY: 这是最终停机而不是等待设备；禁止普通 IRQ，NMI 唤醒时继续停机。
         unsafe { asm!("cli", "hlt", options(nomem, nostack)) }
     }
 }

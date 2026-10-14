@@ -1,8 +1,46 @@
 /* CPU 异常入口：统一有/无硬件错误码的栈形状，再调用普通 Rust C ABI。
  * 使用独立 IST 栈；本章异常打印后停机，故不实现恢复现场/iretq。
- * 若后续实现可恢复中断，必须同时保存/恢复全部现场并补上 iretq。 */
+ * 可返回的外部 IRQ 在 irq.S 中复用寄存器布局，异常本身仍然诊断后停机。 */
 .section .text,"ax"
 .code64
+/* 普通函数可以按 ABI 破坏 caller-saved 寄存器；异步 IRQ 没有调用者主动保存
+ * 寄存器这一前提，所以必须保存全部 15 个通用寄存器，不能只保存 callee-saved。
+ * 裸机 Rust 目标无 red zone、无 SIMD/浮点代码，此处无需额外保存 SIMD/FPU 状态。
+ * 将来允许使用这些寄存器时，必须先扩展上下文保存协议。 */
+.macro SAVE_REGISTERS
+    pushq %rax
+    pushq %rbx
+    pushq %rcx
+    pushq %rdx
+    pushq %rbp
+    pushq %rdi
+    pushq %rsi
+    pushq %r8
+    pushq %r9
+    pushq %r10
+    pushq %r11
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
+.endm
+.macro RESTORE_REGISTERS
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %r11
+    popq %r10
+    popq %r9
+    popq %r8
+    popq %rsi
+    popq %rdi
+    popq %rbp
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+.endm
 .macro EXCEPTION vector has_error=0
 .globl exception_\vector
 exception_\vector:
@@ -48,22 +86,8 @@ EXCEPTION 255
 exception_common:
     cli
     cld
-    /* 顺序与 trap.rs::ExceptionFrame 一致：最后压入的 r15 位于偏移 0。 */
-    pushq %rax
-    pushq %rbx
-    pushq %rcx
-    pushq %rdx
-    pushq %rbp
-    pushq %rdi
-    pushq %rsi
-    pushq %r8
-    pushq %r9
-    pushq %r10
-    pushq %r11
-    pushq %r12
-    pushq %r13
-    pushq %r14
-    pushq %r15
+    /* 顺序与 trap.rs::InterruptFrame 一致：最后压入的 r15 位于偏移 0。 */
+    SAVE_REGISTERS
     movq %rsp, %rdi
     andq $-16, %rsp
     call exception_dispatch

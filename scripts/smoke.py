@@ -7,7 +7,7 @@ import subprocess
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check"])
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check"])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
     address = next(line.split()[0] for line in symbols.splitlines()
@@ -28,6 +28,8 @@ def main() -> None:
     required = ["VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
                 "Physical page allocation/read-write/free OK",
+                "8259A ready: vectors=0x20..0x2f, all IRQs masked",
+                "PIT IRQ0 delivered twice; PIC EOI and IRETQ return OK",
                 "MikoOS Rust kernel ready"]
     if args.expect == "fault-divide":
         required += ["EXCEPTION 0 (divide error) ERROR=0x0000000000000000"]
@@ -36,6 +38,8 @@ def main() -> None:
                      "CR2=0xffff80000aa00000", "instruction_fetch=false"]
     elif args.expect == "memory-check":
         required += ["Page allocator checks OK: cross-word, reuse, fragmentation, exhaustion;"]
+    elif args.expect == "irq-check":
+        required += ["IRQ context checks OK: GPRs, RFLAGS, RSP; software IRQ7/15 spurious paths"]
     required += [f"Breakpoint 1, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]

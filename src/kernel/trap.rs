@@ -14,9 +14,9 @@ unsafe extern "C" {
 
 /// 与 entry.S 的压栈顺序严格一致。IST 切栈使 CPU 保存旧 RSP/SS。
 #[repr(C)]
-pub struct ExceptionFrame {
+pub struct InterruptFrame {
     registers: [u64; 15], // r15..r8, rsi,rdi,rbp,rdx,rcx,rbx,rax
-    vector: u64,
+    pub vector: u64,
     error: u64,
     rip: u64,
     cs: u64,
@@ -24,7 +24,25 @@ pub struct ExceptionFrame {
     rsp: u64,
     ss: u64,
 }
-const _: () = assert!(core::mem::offset_of!(ExceptionFrame, rip) == 136);
+const _: () = assert!(core::mem::offset_of!(InterruptFrame, rip) == 136);
+const _: () = assert!(core::mem::size_of::<InterruptFrame>() == 176);
+
+/// 在现有 IDT 中安装 PIC 的 16 个中断门。IDTR 指向的是这块内存，更新门无需
+/// 再 LIDT；但必须在 IF=0 时完成，不能让 CPU 看见只写了一半的 16 字节门。
+///
+/// # Safety
+/// 单核、关中断，TSS/IST3 已初始化；handler 是保存完整现场并以 IRETQ 返回的入口。
+pub unsafe fn install_irq(vector: usize, handler: u64) {
+    assert!((32..48).contains(&vector));
+    // SAFETY: vector 已限界，初始化阶段独占 IDT；0x8e 为 present、DPL0 中断门。
+    // 中断门在进入时由 CPU 清 IF，保证同一个 IST3 不被另一个普通 IRQ 再次切入。
+    unsafe {
+        core::ptr::addr_of_mut!(IDT)
+            .cast::<Gate>()
+            .add(vector)
+            .write(Gate::new(handler, 0x8e, 3));
+    }
+}
 
 pub unsafe fn init() {
     // SAFETY: 中断关闭且单核，所有门写入完毕后才执行 lidt。
@@ -60,7 +78,7 @@ pub unsafe fn init() {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn exception_dispatch(frame: &ExceptionFrame) -> ! {
+extern "C" fn exception_dispatch(frame: &InterruptFrame) -> ! {
     const NAMES: [&str; 32] = [
         "divide error",
         "debug",

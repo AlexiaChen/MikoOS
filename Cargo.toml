@@ -15,6 +15,7 @@ default = []
 fault-divide = []
 fault-page = []
 memory-check = []
+irq-check = []
 
 [profile.dev]
 panic = "abort"

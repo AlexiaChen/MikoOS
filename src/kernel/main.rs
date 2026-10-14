@@ -7,6 +7,7 @@ mod arch;
 mod console;
 mod font;
 mod gate;
+mod interrupt;
 mod memory;
 mod trap;
 
@@ -14,7 +15,12 @@ use core::{arch::global_asm, panic::PanicInfo};
 
 // 在 Rust 构建中直接汇编边界代码，不再需要 C 预处理器或 GCC。
 global_asm!(include_str!("head.S"), options(att_syntax));
-global_asm!(include_str!("entry.S"), options(att_syntax));
+global_asm!(
+    concat!(include_str!("entry.S"), include_str!("irq.S")),
+    options(att_syntax)
+);
+#[cfg(feature = "irq-check")]
+global_asm!(include_str!("irq_check.S"), options(att_syntax));
 
 #[cfg(all(feature = "fault-divide", feature = "fault-page"))]
 compile_error!("一次只启用一个异常演示功能");
@@ -61,6 +67,14 @@ extern "C" fn Start_Kernel() -> ! {
     unsafe {
         memory::verify()
     };
+    // 所有分配操作仍在 IF=0 时完成，之后才开放本节唯一支持的设备 IRQ0。
+    // SAFETY: IDT/TSS/内存均已初始化；单核、关中断，无资源借用跨越等待窗口。
+    unsafe {
+        interrupt::init();
+        #[cfg(feature = "irq-check")]
+        interrupt::verify_context();
+        interrupt::demonstrate_timer();
+    }
     kprint!(console::GREEN, "MikoOS Rust kernel ready\n");
 
     #[cfg(feature = "fault-divide")]

@@ -47,6 +47,9 @@ pub struct TablePointer {
 struct Stack<const N: usize>([u8; N]);
 static mut EXCEPTION_STACK: Stack<32768> = Stack([0; 32768]);
 static mut DOUBLE_FAULT_STACK: Stack<16384> = Stack([0; 16384]);
+// IRQ 是可返回的异步入口，不能复用异常 IST1：IRQ 处理中若发生异常，CPU 会
+// 再从 IST1 栈顶压栈；若二者共用栈，就会覆盖尚未返回的 IRQ 现场。
+static mut IRQ_STACK: Stack<32768> = Stack([0; 32768]);
 static mut TSS: [u8; 104] = [0; 104];
 
 unsafe extern "C" {
@@ -62,12 +65,14 @@ pub unsafe fn init() {
         let double_top = core::ptr::addr_of_mut!(DOUBLE_FAULT_STACK)
             .cast::<u8>()
             .add(16384) as u64;
+        let irq_top = core::ptr::addr_of_mut!(IRQ_STACK).cast::<u8>().add(32768) as u64;
         let tss = core::ptr::addr_of_mut!(TSS).cast::<u8>();
         // TSS 是硬件规定的紧凑结构：RSP0 从偏移 4 开始，IST1 从偏移 36 开始。
         for offset in [4, 12, 20, 36, 52, 60, 68, 76, 84] {
             write_unaligned(tss.add(offset).cast::<u64>(), top);
         }
         write_unaligned(tss.add(44).cast::<u64>(), double_top); // IST2 专供 #DF
+        write_unaligned(tss.add(52).cast::<u64>(), irq_top); // IST3 专供非嵌套 IRQ
         write_unaligned(tss.add(102).cast::<u16>(), 104); // 无 I/O 权限位图
         let base = tss as u64;
         let low = 103 | ((base & 0xffffff) << 16) | (0x89 << 40) | (((base >> 24) & 0xff) << 56);

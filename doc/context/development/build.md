@@ -23,6 +23,7 @@ conf/win-bochsrc 是历史参考配置，没有在 Windows 上验证 Rust 构建
 ```sh
 make smoke
 make smoke FEATURES=memory-check
+make smoke FEATURES=irq-check
 make smoke FEATURES=fault-divide
 make smoke FEATURES=fault-page
 make                  # 演示后恢复正常启动镜像
@@ -31,6 +32,9 @@ make                  # 演示后恢复正常启动镜像
 smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本地 VNC 监听端口），
 检查 0xe9 输出中的阶段标记、内存一致性与故障结果；无客户端也能运行。
 普通启动还会进行物理页分配、已映射页实际读写和释放演示。
+随后初始化 PIC，仅开放 PIT 的 IRQ0 接收两次真实中断，再全屏蔽并关中断进入最终停机。
+`irq-check` 追加软件 INT 的通用寄存器/标志/栈恢复及伪 IRQ7/15 分支检查；
+真正外部交付仍由 PIT 验证。无键盘、时钟服务、调度器或 APIC 支持。
 `memory-check` 在此之后追加实现完成后的分配器验证：零/超大请求、65 页跨位图字、
 不重叠、释放复用、映射区碎片和耗尽、整段 RAM 耗尽及状态恢复。它不主动触发 CPU 异常。
 扩展验证针对当前 2 GiB Bochs 的单个无预留完整 RAM Zone，并需 65 个连续空闲页和至少
@@ -44,5 +48,5 @@ smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本�
 所以 smoke 能验证 CPU 执行、MMIO 写入流程和日志，不能证明 GUI 实际呈现正确。
 交互 x 后端需要桌面环境，其可视效果尚未验证。
 
-模拟器日志和 smoke 输出写 bin/，不提交；成功时按 normal/fault-divide/fault-page 保存独立日志。失败时先查 bin/bochs-smoke.log 与 bin/smoke-output.log。
+模拟器日志和 smoke 输出写 bin/，不提交；成功时按 normal/memory-check/irq-check/fault-divide/fault-page 保存独立日志。失败时先查 bin/bochs-smoke.log 与 bin/smoke-output.log。
 Rust panic、CPU 异常、BIOS/Loader 停住是不同层次，要按日志区分。

@@ -78,3 +78,48 @@ MikoOS Rust kernel ready
 未验证多 Zone/无序 E820/大内存机器的运行分配，不能把本次结果推广到任意 BIOS 布局。
 高地址分配只验证记账，未映射 RAM 不作实际读写；普通读写验证只覆盖所分配映射页的首尾。
 没有堆、共享页、并发分配、动态页表或性能验证；GUI 与真机限制仍同上。
+
+## 2026-10-14：第 4 章 4-9 外部中断
+
+上一阶段物理页分配及文档已创建本地提交 `cf17d5e`，随后实现本节；未修改父目录参考项目。
+环境仍为 Rust 1.97.1、Bochs 2.7、legacy BIOS、2 GiB RAM。
+
+已实际执行：
+
+- 普通、`irq-check`、`memory-check`、`fault-divide`、`fault-page` 五种 `make check` 均通过。
+- 五种 `make smoke` 均完成离线编译、FAT12 镜像检查，并到达真实 `kernel_halt` 断点。
+  普通和两种故障内核为 49,384 字节，IRQ 检查内核 53,480 字节，内存检查内核 57,648 字节；
+  Loader 2,301 字节，软盘镜像 1,474,560 字节。
+- 普通启动：安装 PIC 16 个门，读回两片 IMR=0xff 和空 ISR；只开放 IRQ0。
+  收到两次来自 PIC 的 PIT IRQ0，处理函数每次确认 ISR0=1，发送 specific EOI 后确认 ISR0=0；
+  CPU 经 IRETQ 返回主流程，演示结束 PIC 全屏蔽、IF=0，然后到达最终停机。
+- `irq-check`：软件 INT 0x27 前在 15 个 GPR 放入不同哨兵，并设 DF 与算术标志；
+  返回后逐一核对 GPR、RSP 和 CF/PF/AF/ZF/SF/IF/DF/OF（此检查的原 IF=0）。
+  软件 INT 0x2f 覆盖伪从片中断分支；两种伪中断计数各为 1，ISR 和硬件时钟计数仍为 0。
+  随后的两次真实 PIT IRQ0 独立通过。
+- 内存检查仍恢复到 1023 个空闲页；#DE 仍为向量 0、错误码 0；
+  #PF 仍为向量 14、错误码 0、CR2=`0xffff80000aa00000`。
+- 最后执行普通 `make smoke`，恢复并重新验证默认镜像，未留下检查/故障配置。
+- Python 语法、文档链接、五份已保存日志与 `git diff --check` 均通过；
+  最终 ELF 无未解析符号，入口保持 `0xffff800000100000`。
+
+关键输出：
+
+```text
+8259A ready: vectors=0x20..0x2f, all IRQs masked
+IRQ context checks OK: GPRs, RFLAGS, RSP; software IRQ7/15 spurious paths
+PIT IRQ0 delivered twice; PIC EOI and IRETQ return OK
+MikoOS Rust kernel ready
+```
+
+其中第二行只在 irq-check 下出现。证据位于 `bin/smoke-irq-check.log` 与
+`bin/bochs-irq-check.log`；其余四种日志分别保存，均不提交。
+初次沙箱内启动仍因 RFB 本地套接字受限失败，允许模拟器运行后通过；已知 32 bpp 限制仍仅按白名单容忍。
+
+新增 IRQ IST3 栈为 32 KiB。普通配置 `_end=0xffff800000133000`，
+元数据末端 `0xffff800000148a00`，仍完全位于已保留的首个 2 MiB 页内。
+
+边界：真实硬件交付只覆盖主片 IRQ0；从片 EOI 路径尚未用真实从片设备验证。
+伪中断只通过软件 INT 模拟 ISR 为空的处理分支，未验证电气级伪请求。
+未做嵌套中断、SMP、APIC、IRQ 内存分配、SIMD/FPU 状态保存、键盘/RTC/磁盘中断、
+时间精度或持续运行性能验证。无桌面 smoke 不证明 GUI 呈现，亦未做真机验证。
