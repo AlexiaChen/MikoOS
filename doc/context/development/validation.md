@@ -1,6 +1,6 @@
 # 验证记录
 
-最新状态见末尾的 **2026-10-15：5-1 用户态入口**；以下保留各阶段当时的验证边界。
+最新状态见末尾的 **2026-10-15：5-2 / 5-3 系统调用**；以下保留各阶段当时的验证边界。
 
 2026-10-13：迁移基线 `a76a0b8` 的 C 内核到 Rust，未推进未实现的后续章节。
 验证环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM。
@@ -272,3 +272,65 @@ MikoOS Rust kernel ready
 INT 0x80 是临时完成通知，没有通用系统调用/SYSENTER 服务。共享 CR3、只映射两个用户页，
 无 ELF、独立进程空间、用户抢占、FPU/SIMD、SMP 或完整内核 W^X；默认演示 IF=0。
 没有验证其他 CPU 厂商、Windows、UEFI、GUI 呈现或真机。
+
+
+## 2026-10-15：5-2 / 5-3 系统调用
+
+基线为用户已提交的 `d86aa21`，对照父目录 `code/c05/5-2`、`5-3` 的
+`kernel/{entry.S,task.c,task.h}`，未修改参考项目。环境沿用 Rust 1.97.1、
+x86_64-unknown-none、Bochs 2.7、Intel Sandy Bridge 模型、legacy BIOS、2 GiB RAM。
+本次按约定一起完成调用 API 与第一个文字服务，机制及原版差异见 [系统调用](../architecture/syscall.md)。
+
+已实际执行：
+
+- 普通、memory-check、irq-check、keyboard-check、task-check、syscall-check、fault-divide、
+  fault-page 及四个 fault-user-*，共 12 种 `make check` 均通过 fmt/release Clippy（`-D warnings`）。
+- 12 种 `make smoke` 均离线构建、通过 FAT12 镜像检查并到达对应 CPU 断点。
+  普通/原 #DE/#PF 内核 69,960 字节，syscall-check 74,056 字节，
+  task-check/irq-check/keyboard-check/四个用户故障内核 78,152 字节，
+  memory-check 82,264 字节；Loader 2,301 字节，软盘 1,474,560 字节。
+- 普通载荷真实从 CPL3 执行两次未知调用（15/128），均收到 -38；1 号服务读取用户栈中的
+  `Hello World! %s %n` 及换行，原样输出 19 字节并返回 19。用户代码继续运行，核对结果，
+  再执行 INT 0x80；完成通知核对 CPU 保存的 CS=0x2b、SS=0x33 和检查状态为零。
+- SYSENTER 的三个 MSR 均用完整 64 位值设置并读回；服务现场在独立内核栈，返回 RIP 在
+  实际复制代码内、RSP 在用户栈页内。演示退出后清 CS/ESP/EIP 并读回，恢复 RSP0/IDT，
+  确认栈底哨兵和 CPL0，撤低地址映射、失效 TLB 后归还整页。
+- syscall-check 追加 0/127/u64::MAX 调用号，NULL、内核地址、未映射空洞、
+  栈下边界跨页、栈上边界跨页和末地址溢出的缓冲区请求；均得到预期错误码。
+  零长度 NULL 返回 0；完整 256 字节栈缓冲输出成功；257/u64::MAX 长度与坏 UTF-8 返回 -22。
+- syscall-check 的用户汇编向所有非协议 GPR 写入不同哨兵，同时准备 RCX/RDX，
+  设置 DF/算术标志后真实执行 SYSENTER。返回时 RAX=-38，其余 GPR、RCX/RDX、
+  RSP/栈哨兵保持，RFLAGS=2；随后正常返回 Rust，完成通知确认检查状态为零。
+- 四种用户保护仍正确：内核读取 #PF(5)、代码写入 #PF(7)、栈取指 #PF(0x15)、HLT #GP(0)；
+  CR2 与 CPL3 现场仍对应指定操作。故障实验在用户服务请求前执行，普通启动无主动异常。
+- task-check 与 irq-check 的现场恢复仍通过，memory-check 仍恢复到 1023 个空闲页；
+  keyboard-check 在用户服务结束/清理后，经宿主 VNC 实际收到 1e/9e/30/b0，零丢失/错误。
+  原 #DE/#PF 向量、错误码和 #PF CR2 保持正确。
+- 检查普通与 syscall-check 的 `.user.text` 反汇编。普通载荷 193 字节，无 CALL、
+  段外数据引用或内核地址；检查载荷 1,141 字节，唯一 CALL 相对指向同复制段的
+  user_syscall_check，所有 RIP 相对引用均在段内；高半区常量仅作为非法指针参数。
+  两种 ELF 无未解析符号。链接时整个载荷仍断言不超过 4 KiB。
+- Python 语法、文档链接、12 份保存日志、精确键盘序列和 `git diff --check` 均通过。
+  最后恢复普通镜像并验证到 kernel_keyboard_wait，入口仍为 0xffff800000100000；
+  普通 `_end=0xffff800000144000`，元数据末端 0xffff800000159a00，仍在已保留的首个 2 MiB 页内。
+
+新增关键输出：
+
+```text
+SYSENTER ready: CS=0x8, dedicated kernel stack, 128 services
+Hello World! %s %n
+System call demo OK: SYSENTER/SYSEXIT64 returned to ring3; write=19, ENOSYS=-38
+System call checks OK: GPRs, RSP, flags; number bounds, user ranges, length, UTF-8
+User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0
+User demo cleanup OK: ring0 restored, low mapping removed, page reclaimed
+```
+
+第四行只出现在 syscall-check；该配置还输出 256 字节空格/换行，用于验证长度上界。
+证据在 bin/smoke-{normal,feature}.log 与 bin/bochs-{normal,feature}.log，不提交。
+首次沙箱运行因 RFB 无法创建本地套接字失败，获准在沙箱外运行模拟器后得到上述结果。
+已知 RFB 32 bpp 限制仍只按原白名单容忍。
+
+边界：没有注入恶意 RCX/RDX 验证无效返回现场的停机分支；没有通用用户缺页恢复、
+并发撤映射、调度/抢占、独立进程空间、TLS、FPU/SIMD 或文件/进程系统调用验证。
+本节仅提供共享 CR3、IF=0 下的内置载荷与一个文字服务，不是通用应用运行环境。
+无桌面 smoke 不证明 GUI 字形呈现，也没有其他 CPU 厂商、Windows、UEFI 或真机验证。

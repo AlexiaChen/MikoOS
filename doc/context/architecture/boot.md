@@ -32,6 +32,8 @@ head.S 切换到高半区后清零完整 BSS，设置 64 KiB 内核栈，16 字�
 否则 Rust 的静态对象可能落到 `_end` 之外，逃过 BSS 清零并与元数据重叠。
 平坦 `kernel.bin` 不含 NOBITS，必须由入口清零；`bin/system` 保留符号用于调试。
 5-1 新增 `.user.text`，链接符号准确界定可复制载荷，长度不得超过一个 4 KiB 页。
+5-2/5-3 的 syscall-check 将 `.user.check` 紧随 Rust 载荷收进同一输出段，
+其中相对 CALL/LEA 随整段搬迁保持正确；普通载荷不能引用段外内核代码或数据。
 
 Bootloader 不必整体用汇编。Rust [bootloader crate](https://docs.rs/bootloader/latest/bootloader/)
 已有 BIOS/UEFI 路径；[x86_64](https://docs.rs/x86_64/latest/x86_64/instructions/index.html)

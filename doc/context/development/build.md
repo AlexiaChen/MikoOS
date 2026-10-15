@@ -27,6 +27,7 @@ make smoke FEATURES=memory-check
 make smoke FEATURES=irq-check
 make smoke FEATURES=keyboard-check
 make smoke FEATURES=task-check
+make smoke FEATURES=syscall-check
 make smoke FEATURES=fault-divide
 make smoke FEATURES=fault-page
 make smoke FEATURES=fault-user-kernel
@@ -41,22 +42,28 @@ smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本�
 普通启动还会进行物理页分配、已映射页实际读写和释放演示。
 随后初始化 PIC，仅开放 PIT 的 IRQ0 接收两次真实中断，再全屏蔽并关中断运行 init 内核线程。
 线程主动让出、恢复、退出并回收整页之后，执行一次有限的 SYSEXIT64 用户态演示，
-通过临时完成通知回到内核、撤映射并回收页，然后初始化 8042/PS/2，仅开放 IRQ1。
-普通内核持续等待并显示扫描码。普通/memory-check/irq-check/task-check 的 smoke
+用户通过 SYSENTER 请求文字输出，检查错误返回，再通过临时完成通知回到内核，
+禁用系统调用 MSR、撤映射并回收页，然后初始化 8042/PS/2，仅开放 IRQ1。
+普通内核持续等待并显示扫描码。普通/memory-check/irq-check/task-check/syscall-check 的 smoke
 在 kernel_keyboard_wait 入口退出；故障演示和有限 keyboard-check 在 kernel_halt 退出。
 `irq-check` 追加软件 INT 的通用寄存器/标志/栈恢复及伪 IRQ7/15 分支检查；
 真正外部交付仍由 PIT 验证。无时钟服务、调度器或 APIC 支持。
 `task-check` 使用两个任务各不相同的 callee-saved 寄存器哨兵，检查三次暂停/恢复的寄存器、RSP 和栈数据；
 另在 init 栈上走软件 IRQ7 的 IST 返回。所有配置均检查参数/进度/退出码、TSS/CR3/栈边界和任务页回收。
 任务演示没有抢占或通用多任务调度；用户态演示完成后继续普通键盘等待。
-所有正常配置都核对真实 CPL3 现场、用户栈运算、TSS.RSP0 内核返回栈、清理后的 CPL0/低地址撤映射。
+所有正常配置都核对 SYSENTER 正常/错误返回、19 字节文字输出、真实 CPL3 完成现场、
+用户栈运算、TSS.RSP0 完成通知栈、清理后的 CPL0/低地址撤映射。
+`syscall-check` 追加调用号 0/127/u64::MAX、NULL/内核/空洞/跨页/溢出区间、
+零/256/257/u64::MAX 长度、坏 UTF-8，以及全部 GPR、RCX/RDX 协议值、RSP/栈哨兵和返回 RFLAGS 检查。
+服务约定与尚未验证的返回地址拒绝分支见 [系统调用](../architecture/syscall.md)。
 `fault-user-kernel` 读取 Supervisor 内核页，预期 #PF(5)、CR2=0xffff800000100000；
 `fault-user-write` 写代码页，预期 #PF(7)、CR2=0x800000；
 `fault-user-exec` 跳到 NX 栈，预期 #PF(0x15)、CR2=RIP=0x9ff000；
 `fault-user-privileged` 执行 HLT，预期 #GP(0)。四种均检查 CPU 保存的 CS=0x2b/SS=0x33、
 用户 RSP 和非特权 RFLAGS，然后停机。故障发生在 PS/2 初始化之前，故不要求键盘 ready。
 六个故障 feature 之间编译期互斥；普通镜像不主动触发异常。
-用户载荷修改后检查 `objdump -d -j .user.text bin/system`：普通载荷不能有外部调用或内核地址引用。
+用户载荷修改后检查 `objdump -d -j .user.text bin/system`：普通载荷不能有段外调用或内核地址引用；syscall-check 的相对 CALL 只能指向同段检查函数，
+该配置还允许把内核地址作为测试参数，但不能直接访问它。
 `keyboard-check` 验证队列 FIFO/环绕/溢出，并由宿主经本次 Bochs 的本机 VNC 发送 a/b 按下与松开，
 核对 IRQ1 收到 1e/9e/30/b0 后停机。RFB 握手与按键发送由 Python 标准库完成，无额外依赖；
 不请求 framebuffer 更新，不把发送成功当作接收成功，每个事件等待内核日志确认。

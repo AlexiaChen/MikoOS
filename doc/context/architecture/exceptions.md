@@ -10,6 +10,8 @@ IST1/2/3 保持独立。内核线程阶段只检查 RSP0 读回；5-1 通过真�
 所有 IDT 条目大小 16 字节，CS=0x08，0~31 对应各 CPU 异常。trap::init 初始给其他条目
 安装通用 fatal 入口；interrupt::init 随后把 32~47 替换为 PIC IRQ 门，其余保持 fatal。
 用户演示期间另将 0x80 临时替换为 DPL3 中断门（0xee、IST=0），正常结束恢复 fatal 门。
+5-2/5-3 的 [SYSENTER 服务](syscall.md) 不查 IDT，直接从 MSR 选择入口/栈；
+它与完成通知顺序复用独立 32 KiB 栈，但不使用中断的 CPU 返回帧。
 3/4/5 保留 DPL=3 的陷阱门；NMI 用中断门；其余用 DPL=0 陷阱门。
 普通异常使用 IST1 的 32 KiB 独立栈；#DF 使用 IST2 的 16 KiB 独立栈。
 PIC IRQ 使用 IST3 的另一个 32 KiB 栈，避免 IRQ 中的异常覆盖尚未返回的 IRQ 现场。

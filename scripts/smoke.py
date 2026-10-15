@@ -70,7 +70,7 @@ def main() -> None:
         "fault-user-exec": (14, 21, "stack execute denied", "0x00000000009ff000"),
         "fault-user-privileged": (13, 0, "privileged HLT denied", None),
     }
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check", "task-check", *user_faults])
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check", "task-check", "syscall-check", *user_faults])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
     expecting_fault = args.expect in ("fault-divide", "fault-page") or args.expect in user_faults
@@ -124,7 +124,10 @@ def main() -> None:
             required += [f"CR2={cr2}", "user=true", "reserved=false",
                          f"instruction_fetch={'true' if args.expect == 'fault-user-exec' else 'false'}"]
     else:
-        required += ["User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0",
+        required += ["SYSENTER ready: CS=0x8, dedicated kernel stack, 128 services",
+                     "Hello World! %s %n",
+                     "System call demo OK: SYSENTER/SYSEXIT64 returned to ring3; write=19, ENOSYS=-38",
+                     "User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0",
                      "User demo cleanup OK: ring0 restored, low mapping removed, page reclaimed",
                      "PS/2 keyboard ready: IRQ1, translated set 1 scan bytes",
                      "MikoOS Rust kernel ready"]
@@ -142,6 +145,8 @@ def main() -> None:
                      "Keyboard IRQ1 checks OK: a make/break, b make/break; no drops/errors"]
     elif args.expect == "task-check":
         required += ["Task context checks OK: callee-saved GPRs, RSP, stack canaries; child IST return"]
+    elif args.expect == "syscall-check":
+        required += ["System call checks OK: GPRs, RSP, flags; number bounds, user ranges, length, UTF-8"]
     required += [f"Breakpoint 1, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]

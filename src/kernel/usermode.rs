@@ -3,7 +3,7 @@
 //! CPL 与地址高低是两回事：SYSEXIT 把 CPL 改成 3，页表 U/S 决定此时能访问
 //! 哪些内存。只改变 CS，却把内核页也标成 User，不能得到用户/内核隔离。
 //! 原版本节使用宽松映射演示入口；这里保留指令路线，另外建立两个受控的用户页。
-use crate::{arch, console, gate, kprint, memory, trap};
+use crate::{arch, console, gate, kprint, memory, syscall, trap};
 use core::{arch::asm, ptr};
 
 const CODE: u64 = 0x80_0000;
@@ -39,7 +39,8 @@ unsafe extern "C" {
 /// 这段 Rust 被单独链接，再复制到 CODE。不能调用内核函数、引用内核静态数据，
 /// 也不能产生 panic 路径：链接地址在高半区，而运行地址在低半区，绝对地址不会
 /// 自动重定位。volatile 强制生成真实的用户栈读写；常量运算本身无外部依赖。
-/// 发布前还要看 .user.text 反汇编，确认没有跨段调用或内核地址，不能只看源码。
+/// 发布前还要看 .user.text 反汇编，确认没有跨段调用或内核数据访问，不能只看源码。
+/// syscall-check 可以把内核地址作为“应拒绝的指针参数”，但不能直接解引用它。
 #[unsafe(link_section = ".user.text")]
 #[unsafe(no_mangle)]
 #[inline(never)]
@@ -54,14 +55,7 @@ extern "C" fn user_demo() -> ! {
             .write_volatile(input.wrapping_add(17).rotate_left(7));
         p.add(1).read_volatile()
     };
-    let cs: u16;
-    let ss: u16;
-    // SAFETY: 读取段选择子不要求特权；结果通过完成通知交给内核复核。
-    unsafe {
-        asm!("mov {cs:x}, cs", "mov {ss:x}, ss", cs = out(reg) cs, ss = out(reg) ss,
-            options(nomem, nostack, preserves_flags));
-    }
-    let _ = (result, cs, ss);
+    let _ = result;
     #[cfg(feature = "fault-user-kernel")]
     // SAFETY: 显式故障实验，预期 CPU 拒绝用户读取 Supervisor 内核页；不构造 Rust 引用。
     unsafe {
@@ -89,10 +83,78 @@ extern "C" fn user_demo() -> ! {
         feature = "fault-user-exec",
         feature = "fault-user-privileged"
     )))]
-    // SAFETY: 内核预先安装 DPL3 的 0x80 完成通知门并提供 TSS.RSP0；本载荷不再返回。
-    unsafe {
-        asm!("int 0x80", "ud2", in("rax") result, in("rdi") u64::from(cs),
-            in("rsi") u64::from(ss), options(noreturn));
+    {
+        // 栈上的定长数组不依赖高半区 .rodata。文字里的格式符也应原样输出。
+        let message = *b"Hello World! %s %n\n";
+        let mut failures = 0u64;
+        failures |= (syscall::request(15, 0, 0) != syscall::ENOSYS) as u64;
+        failures |= (syscall::request(128, 0, 0) != syscall::ENOSYS) as u64;
+        failures |= (syscall::request(
+            syscall::WRITE,
+            message.as_ptr() as u64,
+            message.len() as u64,
+        ) != message.len() as i64) as u64;
+        #[cfg(feature = "syscall-check")]
+        {
+            macro_rules! check {
+                ($number:expr, $address:expr, $length:expr, $expected:expr) => {
+                    failures |= (syscall::request($number, $address, $length) != $expected) as u64;
+                };
+            }
+            check!(0, 0, 0, syscall::ENOSYS);
+            check!(127, 0, 0, syscall::ENOSYS);
+            check!(u64::MAX, 0, 0, syscall::ENOSYS);
+            check!(syscall::WRITE, 0, 0, 0);
+            check!(syscall::WRITE, 0, 1, syscall::EFAULT);
+            check!(
+                syscall::WRITE,
+                memory::PAGE_OFFSET as u64 + 0x10_0000,
+                1,
+                syscall::EFAULT
+            );
+            check!(syscall::WRITE, CODE + PAGE as u64, 1, syscall::EFAULT);
+            check!(syscall::WRITE, STACK - 1, 2, syscall::EFAULT);
+            check!(syscall::WRITE, STACK_TOP - 1, 2, syscall::EFAULT);
+            check!(syscall::WRITE, u64::MAX, 2, syscall::EFAULT);
+            check!(
+                syscall::WRITE,
+                message.as_ptr() as u64,
+                257,
+                syscall::EINVAL
+            );
+            check!(syscall::WRITE, 0, u64::MAX, syscall::EINVAL);
+            // 完整填充一个最大长度缓冲，验证 256 可接受而 257 被拒绝；
+            // volatile 保留用户实际写入，也避免生成不可搬迁的外部 memset 调用。
+            let mut maximum = core::mem::MaybeUninit::<[u8; syscall::MAX_WRITE]>::uninit();
+            let buffer = maximum.as_mut_ptr().cast::<u8>();
+            for offset in 0..syscall::MAX_WRITE {
+                // SAFETY: 独占的 256 字节栈槽，逐字节初始化；传给内核前全部写完。
+                unsafe { buffer.add(offset).write_volatile(b' ') };
+            }
+            // SAFETY: 同一数组的最后一字节已在上面的循环中初始化。
+            unsafe { buffer.add(syscall::MAX_WRITE - 1).write_volatile(b'\n') };
+            check!(
+                syscall::WRITE,
+                buffer as u64,
+                syscall::MAX_WRITE as u64,
+                syscall::MAX_WRITE as i64
+            );
+            let bad_utf8 = [0xffu8];
+            check!(syscall::WRITE, bad_utf8.as_ptr() as u64, 1, syscall::EINVAL);
+            let registers: u64;
+            // SAFETY: 相对 CALL 与目标都在同一复制段；汇编保留 C ABI 的非易失
+            // 寄存器。它临时设置 DF 测试入口 CLD，并在返回 Rust 前再次清 DF。
+            unsafe {
+                asm!("call user_syscall_check", lateout("rax") registers, clobber_abi("C"));
+            }
+            failures |= registers;
+        }
+        // 在多次 SYSEXIT 之后重新读 CS/SS，完成门的 CPU 现场另作 CPL3 证据。
+        // SAFETY: 内核已安装 DPL3 完成门和 TSS.RSP0；该通知只结束有限演示。
+        unsafe {
+            asm!("xor edi, edi", "xor esi, esi", "mov di, cs", "mov si, ss", "int 0x80", "ud2",
+                in("rax") result, in("rdx") failures, options(noreturn));
+        }
     }
 }
 
@@ -125,6 +187,7 @@ pub unsafe fn demonstrate() {
         // 不能直接用启动栈顶：user_enter 的挂起现场还在启动栈上，CPU 从栈顶
         // 重新压栈会覆盖它。独立返回栈既演示 RSP0，也保住原来的调用链。
         gate::set_kernel_stack(top);
+        syscall::enable(top);
         trap::set_user_return_gate(Some(user_return_entry as *const () as u64));
         ptr::addr_of_mut!(ACTIVE).write(true);
         kprint!(
@@ -139,6 +202,7 @@ pub unsafe fn demonstrate() {
         asm!("mov {0:x}, cs", out(reg) cs, options(nomem, nostack, preserves_flags));
         assert_eq!(cs, 8);
         ptr::addr_of_mut!(ACTIVE).write(false);
+        syscall::disable();
         trap::set_user_return_gate(None);
         gate::set_kernel_stack(old_stack);
         let root = root();
@@ -185,7 +249,6 @@ unsafe fn prepare_cpu() {
         let cr0: u64;
         asm!("mov {}, cr0", out(reg) cr0, options(nostack));
         asm!("mov cr0, {}", in(reg) cr0 | (1 << 16), options(nostack));
-        asm!("wrmsr", in("ecx") 0x174u32, in("eax") 8u32, in("edx") 0u32, options(nostack));
     }
 }
 
@@ -236,12 +299,48 @@ extern "C" fn user_return_dispatch(frame: &trap::InterruptFrame) -> u64 {
         assert_eq!(gate::kernel_stack(), top);
         assert_eq!((frame.registers[9], frame.registers[8]), (0x2b, 0x33));
         assert_eq!(frame.registers[14], RESULT);
+        assert_eq!(frame.registers[11], 0, "user syscall checks failed");
+        kprint!(
+            console::GREEN,
+            "System call demo OK: SYSENTER/SYSEXIT64 returned to ring3; write=19, ENOSYS=-38\n"
+        );
+        #[cfg(feature = "syscall-check")]
+        kprint!(
+            console::GREEN,
+            "System call checks OK: GPRs, RSP, flags; number bounds, user ranges, length, UTF-8\n"
+        );
         kprint!(
             console::GREEN,
             "User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0\n"
         );
         frame.registers[14]
     }
+}
+
+/// 本节仅有两个固定用户页；验证完整区间属于其中一页，不能把空洞或高半区
+/// 当作可读用户内存。此规则与 install_mapping 同属一个模块，映射变更须同步。
+pub fn readable(address: u64, length: u64) -> bool {
+    let Some(end) = address.checked_add(length) else {
+        return false;
+    };
+    (CODE <= address && end <= CODE + PAGE as u64) || (STACK <= address && end <= STACK_TOP)
+}
+
+pub fn valid_syscall(frame: &syscall::Frame) -> bool {
+    let bottom = ptr::addr_of!(RETURN_STACK).addr();
+    let top = bottom + 32768;
+    // SAFETY: 入口已经位于独立内核栈，单核 IF=0；ACTIVE 只由演示前后修改。
+    let active = unsafe { ptr::addr_of!(ACTIVE).read() };
+    active
+        && gate::kernel_stack() == top
+        && (bottom + 8..=top - core::mem::size_of::<syscall::Frame>())
+            .contains(&(frame as *const _ as usize))
+        && (CODE..CODE + user_code_size() as u64).contains(&frame.rdx)
+        && (STACK..STACK_TOP).contains(&frame.rcx)
+}
+
+fn user_code_size() -> usize {
+    ptr::addr_of!(__user_end).addr() - ptr::addr_of!(__user_start).addr()
 }
 
 fn assert_user_frame(frame: &trap::InterruptFrame) {

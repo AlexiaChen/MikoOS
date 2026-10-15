@@ -10,6 +10,7 @@ mod gate;
 mod interrupt;
 mod keyboard;
 mod memory;
+mod syscall;
 mod task;
 mod trap;
 mod usermode;
@@ -25,12 +26,15 @@ global_asm!(
     concat!(
         include_str!("entry.S"),
         include_str!("irq.S"),
-        include_str!("usermode.S")
+        include_str!("usermode.S"),
+        include_str!("syscall.S")
     ),
     options(att_syntax)
 );
 #[cfg(feature = "irq-check")]
 global_asm!(include_str!("irq_check.S"), options(att_syntax));
+#[cfg(feature = "syscall-check")]
+global_asm!(include_str!("syscall_check.S"), options(att_syntax));
 
 const _: () = assert!(
     cfg!(feature = "fault-divide") as usize

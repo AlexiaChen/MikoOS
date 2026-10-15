@@ -66,7 +66,7 @@ user_return_entry:
     andq $-16, %rsp
     call user_return_dispatch
     /* 完成通知终止本次用户演示，返回的是内核事先保存的 C ABI 调用现场。
-     * 它不支持任意系统调用，也不恢复用户执行；下一节再讨论服务入口协议。 */
+     * 它不恢复用户执行，也不是服务入口；可返回用户的系统调用另见 syscall.S。 */
     movq user_kernel_rsp(%rip), %rsp
     popq %r15
     popq %r14

@@ -14,6 +14,7 @@ SECTIONS
     .user.text ALIGN(4096) : {
         __user_start = .;
         KEEP(*(.user.text))
+        KEEP(*(.user.check))
         __user_end = .;
     }
     ASSERT(__user_end - __user_start <= 4096, "user payload exceeds one page")

@@ -28,7 +28,7 @@ const _: () = assert!(core::mem::offset_of!(InterruptFrame, rip) == 136);
 const _: () = assert!(core::mem::size_of::<InterruptFrame>() == 176);
 
 /// 本节完成通知门：DPL3 允许用户执行 INT 0x80；IST=0 让真实的 CPL3→0
-/// 转换从 TSS.RSP0 选择栈。演示结束必须关闭，不能留下通用系统调用入口。
+/// 转换从 TSS.RSP0 选择栈。只用于结束演示，服务请求另走 SYSENTER。
 ///
 /// # Safety
 /// 单核 IF=0，TSS.RSP0 已指向独立、存活的完成通知栈，handler 有完整 CPU 入口协议。
