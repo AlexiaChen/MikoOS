@@ -70,7 +70,8 @@ CURRENT 显式记录任务指针，不用原版 RSP & ~32767 推断地址。
 切换前在 IF=0 下更新状态、CURRENT 和 TSS.RSP0，再执行换栈。此小段过渡不支持 NMI/SMP 读取任务状态。
 gate::set_kernel_stack 只用未对齐写更新 TSS 偏移 4，IST1/2/3 不动；TR 仍指向同一个 TSS。
 RSP0 为将来从较低特权级进入内核准备栈，ring0 主动切换本身不会使用它自动换栈。
-每次恢复检查当前实际 RSP 范围、TSS 读回、CR3 与 Running 状态；这不证明已经验证过 ring3 进入。
+每次恢复检查当前实际 RSP 范围、TSS 读回、CR3 与 Running 状态；线程检查本身不验证 ring3 进入。
+随后独立运行 5-1 的有限 [用户态演示](usermode.md)，它不改变此处两个任务均为内核线程的契约。
 
 原版 do_fork 整体复制后再修订描述符/现场，本项目改为显式构造有效字段与新帧，避免旧指针别名依赖。
 原版 lib.h 自定义 memcpy(From, To, Num)，其 regs→新栈调用符合该接口；本项目 arch.rs 的

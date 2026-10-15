@@ -4,7 +4,7 @@
 再读 [进度](project/progress.md)，最后按本次修改范围进入下列分支。
 
 - [项目](project/README.md)：学习目标、章节来源、当前范围。
-- [架构](architecture/README.md)：启动、控制台、异常、内存、IRQ、键盘与任务的源码入口和契约。
+- [架构](architecture/README.md)：启动、控制台、异常、内存、IRQ、键盘、任务与用户态的源码入口和契约。
 - [开发](development/README.md)：实现流程、构建命令、验证证据。
 
 维护规则：每次实现完成，同步修改对应叶节点；新增节点要更新父节点导航。

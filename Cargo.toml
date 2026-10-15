@@ -18,6 +18,10 @@ memory-check = []
 irq-check = []
 keyboard-check = []
 task-check = []
+fault-user-kernel = []
+fault-user-write = []
+fault-user-exec = []
+fault-user-privileged = []
 
 [profile.dev]
 panic = "abort"

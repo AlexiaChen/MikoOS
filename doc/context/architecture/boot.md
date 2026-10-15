@@ -24,12 +24,14 @@ E820 原缓冲区 `0x7e00` 在条目较多时会与 VBE 的 `0x8000` 重叠。
 内核链接虚拟基址是 `0xffff800000100000`（高半区偏移加 1 MiB）。
 head.S 初始直映物理 `[0,10 MiB)`，虚拟偏移 `+0xffff800000000000`；
 虚拟偏移 `[10,26 MiB)` 是 VBE 显存窗口，PDE 按选中模式的物理帧缓冲地址填写。
-这不是全部物理 RAM 的映射。页表与 GDT 初始描述不设置用户访问权限。
+这不是全部物理 RAM 的映射。初始页表为 Supervisor；GDT 另有用户段槽位，
+但安装用户段本身不会开放内存。5-1 建立独立低地址用户页，见 [用户态](usermode.md)。
 
 head.S 切换到高半区后清零完整 BSS，设置 64 KiB 内核栈，16 字节对齐后 CALL Rust。
 链接脚本同时收集普通及 large code model 的 `.ltext/.lrodata/.ldata/.lbss`，
 否则 Rust 的静态对象可能落到 `_end` 之外，逃过 BSS 清零并与元数据重叠。
 平坦 `kernel.bin` 不含 NOBITS，必须由入口清零；`bin/system` 保留符号用于调试。
+5-1 新增 `.user.text`，链接符号准确界定可复制载荷，长度不得超过一个 4 KiB 页。
 
 Bootloader 不必整体用汇编。Rust [bootloader crate](https://docs.rs/bootloader/latest/bootloader/)
 已有 BIOS/UEFI 路径；[x86_64](https://docs.rs/x86_64/latest/x86_64/instructions/index.html)

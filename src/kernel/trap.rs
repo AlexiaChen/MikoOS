@@ -15,17 +15,36 @@ unsafe extern "C" {
 /// 与 entry.S 的压栈顺序严格一致。IST 切栈使 CPU 保存旧 RSP/SS。
 #[repr(C)]
 pub struct InterruptFrame {
-    registers: [u64; 15], // r15..r8, rsi,rdi,rbp,rdx,rcx,rbx,rax
+    pub registers: [u64; 15], // r15..r8, rsi,rdi,rbp,rdx,rcx,rbx,rax
     pub vector: u64,
-    error: u64,
-    rip: u64,
-    cs: u64,
-    rflags: u64,
-    rsp: u64,
-    ss: u64,
+    pub error: u64,
+    pub rip: u64,
+    pub cs: u64,
+    pub rflags: u64,
+    pub rsp: u64,
+    pub ss: u64,
 }
 const _: () = assert!(core::mem::offset_of!(InterruptFrame, rip) == 136);
 const _: () = assert!(core::mem::size_of::<InterruptFrame>() == 176);
+
+/// 本节完成通知门：DPL3 允许用户执行 INT 0x80；IST=0 让真实的 CPL3→0
+/// 转换从 TSS.RSP0 选择栈。演示结束必须关闭，不能留下通用系统调用入口。
+///
+/// # Safety
+/// 单核 IF=0，TSS.RSP0 已指向独立、存活的完成通知栈，handler 有完整 CPU 入口协议。
+pub unsafe fn set_user_return_gate(handler: Option<u64>) {
+    // SAFETY: 启动阶段独占 IDT，仅更新保留的 0x80 门，结束时恢复原 fatal 门。
+    unsafe {
+        let gate = match handler {
+            Some(address) => Gate::new(address, 0xee, 0),
+            None => Gate::new(exception_255 as *const () as u64, 0x8f, 1),
+        };
+        core::ptr::addr_of_mut!(IDT)
+            .cast::<Gate>()
+            .add(0x80)
+            .write(gate);
+    }
+}
 
 /// 在现有 IDT 中安装 PIC 的 16 个中断门。IDTR 指向的是这块内存，更新门无需
 /// 再 LIDT；但必须在 IF=0 时完成，不能让 CPU 看见只写了一半的 16 字节门。
@@ -151,6 +170,25 @@ extern "C" fn exception_dispatch(frame: &InterruptFrame) -> ! {
             frame.error & 8 != 0,
             frame.error & 16 != 0
         );
+    }
+    if frame.cs & 3 == 3 {
+        kprint!(
+            console::RED,
+            "User exception context: CS={:#06x} SS={:#06x} RFLAGS={:#018x}\n",
+            frame.cs,
+            frame.ss,
+            frame.rflags
+        );
+        #[cfg(any(
+            feature = "fault-user-kernel",
+            feature = "fault-user-write",
+            feature = "fault-user-exec",
+            feature = "fault-user-privileged"
+        ))]
+        // SAFETY: 致命异常入口已关 IF，单核；只读本节演示的状态和 CPU 保存现场。
+        unsafe {
+            crate::usermode::verify_expected_fault(frame)
+        };
     }
     arch::halt()
 }

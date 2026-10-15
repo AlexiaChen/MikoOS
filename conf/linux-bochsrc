@@ -22,16 +22,15 @@ boot: floppy
 
 pci: enabled=1, chipset=i440fx
 vga: extension=vbe, update_freq=5
-cpu: count=1:1:1, ips=4000000 
+cpu: model=corei7_sandy_bridge_2600k, count=1:1:1, ips=4000000
 # model=corei7_haswell_4770
 # quantum=16
 # model=corei7_haswell_4770
 # reset_on_triple_fault=1, ignore_bad_msrs=1, mwait_is_nop=0
-cpuid: x86_64=1 
+# SYSEXIT64 使用 Intel64 语义；选定模型同时提供 long mode、SEP 和 NX。
 # level=6
 # mmx=1, sep=1
 # simd=avx512, aes=1, movbe=1, xsave=1, apic=x2apic, sha=1, adx=1, xsaveopt=1, avx_f16c=1, avx_fma=1, bmi=bmi2, lg_pages=1, pcid=1, fsgsbase=1, smep=1, smap=1, mwait=1, vmx=1
-# cpuid: family=6, model=0x1a, stepping=5, vendor_string="Intel", brand_string="Intel(R) Core(TM) i7-4770 CPU"
 
 print_timestamps: enabled=0
 magic_break: enabled=0

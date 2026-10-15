@@ -40,6 +40,7 @@ doc/context/
 │   ├── interrupts.md            # 8259A/PIT、IRQ 保存/返回、中断屏蔽
 │   ├── keyboard.md              # PS/2/8042、IRQ1、扫描码字节队列
 │   ├── tasks.md                 # 内核线程、独立栈、主动切换与退出回收
+│   ├── usermode.md              # SYSEXIT64、用户页权限与特权返回栈
 │   └── memory.md                # E820、2 MiB 页、位图与 Zone
 └── development/
     ├── README.md                # 日常实现与验证流程

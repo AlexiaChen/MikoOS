@@ -71,7 +71,9 @@ __PDE:
 GDT_Table:
     .quad 0,0x0020980000000000,0x0000920000000000
     .quad 0x0020f80000000000,0x0000f20000000000
-    .quad 0x00cf9a000000ffff,0x00cf92000000ffff,0
+    /* SYSEXIT64 由 SYSENTER_CS=0x08 推导 CS=0x2b、SS=0x33，使用槽 5/6。
+     * 内核已在 long mode，旧的兼容模式段不再使用；槽 5 的 L=1、D=0。 */
+    .quad 0x0020f80000000000,0x0000f20000000000,0
     .quad 0,0 /* GDT 8~9: Rust 设置 16 字节 TSS 描述符 */
 GDT_END:
 GDT_POINTER:

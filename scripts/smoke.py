@@ -64,10 +64,16 @@ def inject_keyboard(process, output, deadline):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check", "task-check"])
+    user_faults = {
+        "fault-user-kernel": (14, 5, "kernel read denied", "0xffff800000100000"),
+        "fault-user-write": (14, 7, "code write denied", "0x0000000000800000"),
+        "fault-user-exec": (14, 21, "stack execute denied", "0x00000000009ff000"),
+        "fault-user-privileged": (13, 0, "privileged HLT denied", None),
+    }
+    parser.add_argument("--expect", choices=["fault-divide", "fault-page", "memory-check", "irq-check", "keyboard-check", "task-check", *user_faults])
     args = parser.parse_args()
     symbols = subprocess.check_output(["nm", "bin/system"], text=True)
-    expecting_fault = args.expect in ("fault-divide", "fault-page")
+    expecting_fault = args.expect in ("fault-divide", "fault-page") or args.expect in user_faults
     boundary = "kernel_halt" if expecting_fault or args.expect == "keyboard-check" else "kernel_keyboard_wait"
     address = next(line.split()[0] for line in symbols.splitlines()
                    if line.split()[-1] == boundary)
@@ -107,8 +113,21 @@ def main() -> None:
                 "init task resumed after yielding",
                 "Kernel thread exit: pid=1 code=1",
                 "Kernel thread demo OK: yield, resume, exit=1; page reclaimed",
-                "PS/2 keyboard ready: IRQ1, translated set 1 scan bytes",
-                "MikoOS Rust kernel ready"]
+                "User mapping ready: code=0x800000 R-X, stack=0x9ff000 RW-NX; kernel supervisor"]
+    if args.expect in user_faults:
+        vector, error, label, cr2 = user_faults[args.expect]
+        name = "page fault" if vector == 14 else "general protection"
+        required += [f"EXCEPTION {vector} ({name}) ERROR={error:#018x}",
+                     "User exception context: CS=0x002b SS=0x0033",
+                     f"User protection check OK: {label}; CPL=3"]
+        if cr2:
+            required += [f"CR2={cr2}", "user=true", "reserved=false",
+                         f"instruction_fetch={'true' if args.expect == 'fault-user-exec' else 'false'}"]
+    else:
+        required += ["User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0",
+                     "User demo cleanup OK: ring0 restored, low mapping removed, page reclaimed",
+                     "PS/2 keyboard ready: IRQ1, translated set 1 scan bytes",
+                     "MikoOS Rust kernel ready"]
     if args.expect == "fault-divide":
         required += ["EXCEPTION 0 (divide error) ERROR=0x0000000000000000"]
     elif args.expect == "fault-page":

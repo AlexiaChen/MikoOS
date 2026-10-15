@@ -1,4 +1,4 @@
-//! 第 4 章内核主程序：图形输出 → 异常 → 内存 → IRQ → 内核线程 → 键盘接收。
+//! 初始化主线：图形输出 → 异常 → 内存 → IRQ → 内核线程 → 用户态 → 键盘接收。
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -12,6 +12,7 @@ mod keyboard;
 mod memory;
 mod task;
 mod trap;
+mod usermode;
 
 use core::{arch::global_asm, panic::PanicInfo};
 
@@ -21,14 +22,26 @@ global_asm!(include_str!("task_switch.S"), options(att_syntax));
 #[cfg(feature = "task-check")]
 global_asm!(include_str!("task_check.S"), options(att_syntax));
 global_asm!(
-    concat!(include_str!("entry.S"), include_str!("irq.S")),
+    concat!(
+        include_str!("entry.S"),
+        include_str!("irq.S"),
+        include_str!("usermode.S")
+    ),
     options(att_syntax)
 );
 #[cfg(feature = "irq-check")]
 global_asm!(include_str!("irq_check.S"), options(att_syntax));
 
-#[cfg(all(feature = "fault-divide", feature = "fault-page"))]
-compile_error!("一次只启用一个异常演示功能");
+const _: () = assert!(
+    cfg!(feature = "fault-divide") as usize
+        + cfg!(feature = "fault-page") as usize
+        + cfg!(feature = "fault-user-kernel") as usize
+        + cfg!(feature = "fault-user-write") as usize
+        + cfg!(feature = "fault-user-exec") as usize
+        + cfg!(feature = "fault-user-privileged") as usize
+        <= 1,
+    "一次只启用一个异常演示功能"
+);
 
 #[unsafe(no_mangle)]
 extern "C" fn Start_Kernel() -> ! {
@@ -79,8 +92,9 @@ extern "C" fn Start_Kernel() -> ! {
         #[cfg(feature = "irq-check")]
         interrupt::verify_context();
         interrupt::demonstrate_timer();
-        // 内核线程演示全程 IF=0，收回线程页之后再初始化并开放键盘。
+        // 两个有限演示全程 IF=0，收回各自的物理页之后再初始化并开放键盘。
         task::demonstrate();
+        usermode::demonstrate();
         keyboard::init();
     }
     kprint!(console::GREEN, "MikoOS Rust kernel ready\n");

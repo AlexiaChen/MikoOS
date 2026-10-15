@@ -10,6 +10,13 @@ SECTIONS
         *(.text .text.* .ltext .ltext.*)
         _endtext = .;
     }
+    /* 单独界定可复制的 Rust 用户载荷，不猜测函数长度，也不复制邻近内核代码。 */
+    .user.text ALIGN(4096) : {
+        __user_start = .;
+        KEEP(*(.user.text))
+        __user_end = .;
+    }
+    ASSERT(__user_end - __user_start <= 4096, "user payload exceeds one page")
     .rodata ALIGN(4096) : { *(.rodata .rodata.* .lrodata .lrodata.*) }
     .data ALIGN(4096) : {
         _data = .;

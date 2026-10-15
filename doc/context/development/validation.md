@@ -1,5 +1,7 @@
 # 验证记录
 
+最新状态见末尾的 **2026-10-15：5-1 用户态入口**；以下保留各阶段当时的验证边界。
+
 2026-10-13：迁移基线 `a76a0b8` 的 C 内核到 Rust，未推进未实现的后续章节。
 验证环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM。
 
@@ -214,3 +216,59 @@ PS/2 keyboard ready: IRQ1, translated set 1 scan bytes
 TSS 只核对内存中的 RSP0，没有执行/验证 ring3 特权转换；子栈 IRQ 测试是软件 INT，不是硬件抢占。
 未覆盖 SMP、NMI 读取任务状态、独立地址空间、FS/GS/TLS、SIMD/FPU、栈溢出注入或保护返回入口。
 边界哨兵不是 guard page；只使用 2 MiB 页前 32 KiB，没有小块分配器。GUI 呈现和真机仍未验证。
+
+## 2026-10-15：5-1 用户态入口
+
+基线为 `b762bd5`，参考父目录 `code/c05/5-1/kernel/{task.c,entry.S,head.S,memory.c}`，未修改原版。
+环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM；
+本节明确选择 Intel `corei7_sandy_bridge_2600k` 模型，交互与 smoke 配置同步。
+
+已实际执行：
+
+- 普通、memory-check、irq-check、keyboard-check、task-check、fault-divide、fault-page，
+  以及四种 fault-user-*，共 11 种 `make check`，fmt/release Clippy（`-D warnings`）均通过。
+- 11 种 `make smoke` 均离线构建、完成 FAT12 镜像检查并到达对应 CPU 断点。
+  普通/task-check/六种故障内核 69,960 字节；keyboard-check/irq-check 74,056 字节；
+  memory-check 78,176 字节。Loader 2,301 字节，软盘镜像 1,474,560 字节。
+- 普通路径：SYSEXIT64 后在低地址执行 Rust 载荷，真实栈读写计算成功；CPU 保存的
+  CS=0x2b、SS=0x33、RIP/RSP 均为用户地址，IF/IOPL/DF=0。INT 0x80 通过 IST=0 的门
+  从 TSS.RSP0 选择专用内核栈，Rust 处理函数确认自身 RSP 在该栈内、TSS 读回和结果正确。
+  返回启动调用链后确认 CS=8、IF=0、栈边界哨兵完整，恢复 RSP0/IDT，清低 PML4、刷新 TLB 后释放页。
+- fault-user-kernel：#PF(5)，CR2=0xffff800000100000，present/user=true、write/fetch=false。
+- fault-user-write：#PF(7)，CR2=0x800000，present/write/user=true、fetch=false。
+- fault-user-exec：#PF(0x15)，CR2=RIP=0x9ff000，present/user/fetch=true、write=false。
+- fault-user-privileged：用户 HLT 产生 #GP(0)。四种故障均由 CPU 保存的 CPL3 现场复核，
+  打印对应保护检查成功标记后到达 kernel_halt；普通路径没有主动异常。
+- task-check 的三次 callee-saved GPR/RSP/哨兵恢复和子线程 IST 返回仍通过；
+  irq-check 的 IRQ 全寄存器/RFLAGS/RSP 恢复和伪 IRQ7/15 分支仍通过。
+  memory-check 仍恢复到 1023 个空闲页。keyboard-check 在用户演示清理后，经宿主 VNC
+  实际收到 1e/9e/30/b0，零丢失/错误。原 #DE/#PF 的向量、错误码和 CR2 均保持正确。
+- `cargo check --release --offline --features ...` 验证三组冲突组合均拒绝编译，且包含
+  “一次只启用一个异常演示功能”：fault-divide+fault-page、fault-user-write+fault-user-exec、
+  fault-page+fault-user-kernel。
+- 检查普通与用户页故障配置的 `.user.text` 反汇编，无跨段调用；普通载荷为 58 字节，
+  只有局部栈访问、立即数运算、读段选择子和 INT，没有高半区引用。
+  故障内核读取载荷仅为实验故意包含内核地址；写入/取指目标都是指定的用户地址。
+- 最后重新执行普通 `make smoke`，恢复默认交互镜像，并到 kernel_keyboard_wait 退出。
+  最终 ELF 无未解析符号，入口仍为 0xffff800000100000；普通 `_end=0xffff800000144000`，
+  内存元数据末端 0xffff800000159a00，仍完全位于首个已保留的 2 MiB 页。
+
+普通关键日志：
+
+```text
+User mapping ready: code=0x800000 R-X, stack=0x9ff000 RW-NX; kernel supervisor
+User mode OK: CS=0x2b SS=0x33 CPL=3, Rust stack/result verified; INT 0x80 used TSS.RSP0
+User demo cleanup OK: ring0 restored, low mapping removed, page reclaimed
+PS/2 keyboard ready: IRQ1, translated set 1 scan bytes
+MikoOS Rust kernel ready
+```
+
+日志分别为 `bin/smoke-{normal,feature}.log` 与 `bin/bochs-{normal,feature}.log`，均不提交。
+首次沙箱内运行因 RFB 套接字受限而失败；允许模拟器运行后得到上述结果。
+原 generic CPU 配置报告 AuthenticAMD，被新增 CPU 前置检查明确拒绝；随后改为预定义 Intel 模型，
+不是通过伪造 vendor 字符串跳过检查。RFB 的已知 32 bpp 限制仍仅按白名单容忍。
+
+边界：本节只验证内置有限 Rust 载荷和指定的四种硬件保护，不代表完整进程安全或任意用户二进制支持。
+INT 0x80 是临时完成通知，没有通用系统调用/SYSENTER 服务。共享 CR3、只映射两个用户页，
+无 ELF、独立进程空间、用户抢占、FPU/SIMD、SMP 或完整内核 W^X；默认演示 IF=0。
+没有验证其他 CPU 厂商、Windows、UEFI、GUI 呈现或真机。

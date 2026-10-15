@@ -6,8 +6,8 @@ vgaromimage: file=/usr/share/vgabios/vgabios.bin
 megs: 2048
 floppya: 1_44="bin/boot.img", status=inserted, write_protected=1
 boot: floppy
-cpu: count=1, ips=4000000, reset_on_triple_fault=0
-cpuid: x86_64=1
+cpu: model=corei7_sandy_bridge_2600k, count=1, ips=4000000, reset_on_triple_fault=0
+# SYSEXIT64 使用 Intel64 语义；选定模型同时提供 long mode、SEP 和 NX。
 pci: enabled=1, chipset=i440fx
 vga: extension=vbe, update_freq=5
 clock: sync=none, time0=0
