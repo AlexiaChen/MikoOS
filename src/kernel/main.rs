@@ -1,4 +1,4 @@
-//! 初始化主线：图形输出 → 异常 → 内存 → IRQ → 内核线程 → 用户态 → 键盘接收。
+//! 初始化主线：图形输出 → 异常 → 处理器模式核对 → 内存 → IRQ → 线程 → 用户态 → 键盘。
 #![no_std]
 #![no_main]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -10,6 +10,7 @@ mod gate;
 mod interrupt;
 mod keyboard;
 mod memory;
+mod processor;
 mod syscall;
 mod task;
 mod trap;
@@ -57,6 +58,9 @@ extern "C" fn Start_Kernel() -> ! {
         trap::init();
     }
     kprint!(console::GREEN, "GDT/IDT/TSS ready\n");
+    // 第 6 章只观察已建立的模式；异常入口已就绪，契约不符时可诊断并停机。
+    // SAFETY: head.S 已安装 GDT/页表/高半区栈，当前 CPL0、IF=0。
+    unsafe { processor::verify_boot_mode() };
     kprint!(console::RED, "init memory\n");
     // SAFETY: Loader 已交接 E820，链接器定义的 _end 之后是初始直映 RAM。
     unsafe { memory::init() };

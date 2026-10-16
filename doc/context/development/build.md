@@ -40,6 +40,8 @@ make                  # 演示后恢复正常启动镜像
 smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本地 VNC 监听端口），
 检查 0xe9 输出中的阶段标记、内存一致性与故障结果；无客户端也能运行。
 普通启动还会进行物理页分配、已映射页实际读写和释放演示。
+第 6 章在异常入口就绪后、内存初始化前只读核对 CR0/CR3/CR4/EFER、CS/LAR 和真实 RIP/RSP，
+打印 `Processor mode OK`。全部配置都执行该检查，不需要新 feature；详见 [处理器体系结构](../architecture/processor.md)。
 随后初始化 PIC，仅开放 PIT 的 IRQ0 接收两次真实中断，再全屏蔽并关中断运行 init 内核线程。
 线程主动让出、恢复、退出并回收整页之后，执行一次有限的 SYSEXIT64 用户态演示，
 用户通过 SYSENTER 请求文字输出，检查错误返回，再通过临时完成通知回到内核，

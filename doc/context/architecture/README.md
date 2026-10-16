@@ -8,6 +8,7 @@ BIOS
             └── main.rs::Start_Kernel
                 ├── console.rs::init / kprint!
                 ├── gate.rs::init → trap.rs::init
+                ├── processor.rs::verify_boot_mode → 只读核对模式/代码段/分页根/高半区
                 ├── memory.rs::init → memory/allocator.rs 分配/释放演示
                 ├── interrupt.rs::init → demonstrate_timer
                 ├── task.rs::demonstrate → init 让出/恢复/退出 → 启动任务回收
@@ -16,6 +17,7 @@ BIOS
 ```
 
 - [启动与交接协议](boot.md)：物理地址、链接布局、汇编保留原因。
+- [处理器体系结构](processor.md)：实模式/保护模式/IA-32e、地址变换和启动状态检查。
 - [图形控制台](console.md)：VBE、字体、边界与格式化。
 - [异常](exceptions.md)：GDT/IDT/TSS、IST、栈 ABI、诊断。
 - [物理内存](memory.md)：E820、元数据、位图/Page/Zone、连续页分配/释放、分页边界。

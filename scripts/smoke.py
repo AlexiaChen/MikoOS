@@ -103,6 +103,7 @@ def main() -> None:
             client.close()
     text = output.read_text(errors="replace")
     required = ["VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
+                "Processor mode OK: IA-32e active, 64-bit code, CPL0; 4-level paging, canonical RIP/RSP",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
                 "Physical page allocation/read-write/free OK",
                 "8259A ready: vectors=0x20..0x2f, all IRQs masked",

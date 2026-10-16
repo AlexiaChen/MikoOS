@@ -17,6 +17,9 @@ MemoryStructMaxEntries equ 32
 
 [SECTION gdt]
 
+; 第 6 章：保护模式的段寄存器保存选择子，CPU 从 GDT 取出隐藏的 base/limit。
+; 这里 CODE32/DATA32 都是 base=0、limit=4 GiB-1 的平坦段（G=1、D/B=1）。
+; “平坦”表示段变换不再平移地址，并不等于已经启用分页或拥有 4 GiB RAM。
 LABEL_GDT:		dd	0,0
 LABEL_DESC_CODE32:	dd	0x0000FFFF,0x00CF9A00
 LABEL_DESC_DATA32:	dd	0x0000FFFF,0x00CF9200
@@ -30,6 +33,8 @@ SelectorData32	equ	LABEL_DESC_DATA32 - LABEL_GDT
 
 [SECTION gdt64]
 
+; 64 位代码段 L=1、D=0。IA-32e 激活后还必须加载这样的 CS 才执行 64 位代码；
+; NASM 的 BITS 只改变生成的指令编码，本身不修改 CPU 模式。
 LABEL_GDT64:		dq	0x0000000000000000
 LABEL_DESC_CODE64:	dq	0x0020980000000000
 LABEL_DESC_DATA64:	dq	0x0000920000000000
@@ -66,7 +71,8 @@ _Start:
     mov bp, StartLoaderMessage
     int 0x10
 
-; =========== open address A20, to open fearure of accessing address above 1MB, and 4GB of accessing address
+; A20 是地址线门控：打开后 bit20 不再强制为 0，跨过 1 MiB 的访问不会回绕。
+; 它不改变段 limit，也不启用分页；访问更高地址还需要下面的段缓存设置。
 
     push ax
     in al, 0x92
@@ -83,7 +89,10 @@ _Start:
     or eax, 1 ; set bit 0 to 1 for cr0 register to open protection mode
     mov cr0, eax
 
-; enable big real mode to move kernel to the address above 1MB
+; big/unreal mode：PE=1 时为 FS 加载 base=0、4 GiB limit 的描述符，再清 PE。
+; 回到实模式后仍借用 FS 的隐藏缓存，用 32 位偏移向物理 1 MiB 复制内核。
+; 此时 CS 仍走 16 位引导流程，可以继续使用 BIOS；不能重新加载 FS 抹掉缓存。
+; 这是现有 Loader 的阶段性做法，更完整的引导可靠性在第 7 章继续处理。
     mov ax, SelectorData32
     mov fs, ax
     mov eax, cr0
@@ -505,7 +514,9 @@ Label_SVGA_Mode_Info_Finish:
 
 GO_TO_TMP_Protect:
 
-;=======	go to tmp long mode
+; 已由前面的远跳转加载 CODE32。CR0.PE 负责启用保护模式，远跳转负责加载
+; CS 隐藏缓存中的 D 位；只有把两者结合起来，下面的 BITS 32 编码才匹配 CPU。
+; 此阶段 PG=0、段 base=0，线性地址直接对应物理地址；之后不再调用实模式 BIOS。
 
 	mov	ax,	0x10
 	mov	ds,	ax
@@ -558,18 +569,21 @@ GO_TO_TMP_Protect:
 
 	mov	esp,	7E00h
 
-;=======	open PAE
+; IA-32e 的前置条件：先在 PG=0 的保护模式设置 CR4.PAE（bit5），再装 CR3。
+; PAE 表示使用扩展页表机制，不表示直接进入 64 位模式；此处根是四级 PML4。
 
 	mov	eax,	cr4
 	bts	eax,	5
 	mov	cr4,	eax
 
-;=======	load	cr3
+; CR3 必须是页表的物理地址。过渡表同时提供低地址与高半区别名，
+; 保证开启分页后的当前指令、栈和将要跳入的内核代码仍可访问。
 
 	mov	eax,	0x90000
 	mov	cr3,	eax
 
-;=======	enable long-mode
+; EFER.LME（bit8）是“允许进入 IA-32e”的请求；此时 PG=0，尚未激活。
+; EFER.LMA（bit10）由 CPU 在条件满足时置位，不能把它当普通软件开关写入。
 
 	mov	ecx,	0C0000080h		;IA32_EFER
 	rdmsr
@@ -577,7 +591,9 @@ GO_TO_TMP_Protect:
 	bts	eax,	8
 	wrmsr
 
-;=======	open PE and paging
+; 最后置 CR0.PG（bit31）；PE/PAE/LME 都已满足，CPU 激活 IA-32e。
+; 当前 CS 仍是 L=0 的 CODE32，因此先处于兼容子模式；紧随的远跳转加载
+; CODE64（L=1、D=0），才开始按 64 位规则执行位于物理 1 MiB 的 head.S。
 
 	mov	eax,	cr0
 	bts	eax,	0

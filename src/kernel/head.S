@@ -19,9 +19,13 @@ _start:
     addq $8, %rdi
     loop 1b
     movq $0x101000, %rax
+    /* CR3 接收物理地址；高半区只是同一物理页的另一条线性地址映射。
+     * 此次替换页表根时，旧/新页表都覆盖当前低地址执行位置和目标高半区。 */
     movq %rax, %cr3
     lgdt GDT_POINTER(%rip)
-    /* far return 同时重新加载 CS，并跳转到链接器定义的高半区地址。 */
+    /* far return 同时重新加载 CS，并跳转到链接器定义的高半区地址。
+     * IA-32e 下 CS.L=1；普通 CS/DS/ES/SS 的段基址不再用于平移地址。
+     * 高半区来自 RIP 与页表，CPL0 来自代码段权限，不能用地址高低代替权限。 */
     movabsq $entry64, %rax
     pushq $0x08
     pushq %rax

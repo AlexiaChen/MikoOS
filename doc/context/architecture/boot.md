@@ -3,6 +3,8 @@
 源码：`src/boot/{boot.asm,fat12.inc,loader.asm}`、`src/kernel/{head.S,kernel.lds}`、
 `main.rs` 的 `global_asm!`。
 
+第 6 章的模式转换、段缓存、地址变换与 Rust 启动状态检查见 [处理器体系结构](processor.md)。
+
 | 物理地址 | 用途 |
 | --- | --- |
 | `0x4ff0` | Loader 写入的 E820 条目数量（u16，小端） |

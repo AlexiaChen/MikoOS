@@ -1,6 +1,6 @@
 # 验证记录
 
-最新状态见末尾的 **2026-10-15：5-2 / 5-3 系统调用**；以下保留各阶段当时的验证边界。
+最新状态见末尾的 **2026-10-16：第 6 章处理器体系结构**；以下保留各阶段当时的验证边界。
 
 2026-10-13：迁移基线 `a76a0b8` 的 C 内核到 Rust，未推进未实现的后续章节。
 验证环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM。
@@ -334,3 +334,50 @@ User demo cleanup OK: ring0 restored, low mapping removed, page reclaimed
 并发撤映射、调度/抢占、独立进程空间、TLS、FPU/SIMD 或文件/进程系统调用验证。
 本节仅提供共享 CR3、IF=0 下的内置载荷与一个文字服务，不是通用应用运行环境。
 无桌面 smoke 不证明 GUI 字形呈现，也没有其他 CPU 厂商、Windows、UEFI 或真机验证。
+
+## 2026-10-16：第 6 章处理器体系结构
+
+基线为 `4b2b18e`。首先重新核对原版第 5 章三个小节与当前调用链，
+普通、syscall-check、四种 fault-user 配置的 `make check` 与 `make smoke` 均通过。
+章节目标已具备；独立进程/ELF/通用 execve 不在这三个小节的已实现范围内。
+无效 RCX/RDX 拒绝分支的既有验证缺口仍按上一节保留，没有因本次复核而声称补齐。
+
+然后对比 `code/c05/5-3` 与 `code/c06/6-1`：内核功能相同，入口汇编差异仅为空白，
+另有 Bochs 配置差异。因此本章围绕现有模式转换补充教学说明，
+并增加 Rust 只读启动状态检查，详见 [处理器体系结构](../architecture/processor.md)。
+环境仍为 Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、Intel Sandy Bridge 模型、
+legacy BIOS、2 GiB RAM。
+
+第 6 章实现完成后实际执行：
+
+- 全部 12 种配置的 `make check`（fmt、release Clippy、warnings 当错误）均通过：
+  普通、memory-check、irq-check、keyboard-check、task-check、syscall-check、
+  fault-divide、fault-page 和四种 fault-user。
+- 同一组 12 种 `make smoke` 均完成离线构建、FAT12 镜像检查及 Bochs 启动检查；
+  所有配置都包含新的 `Processor mode OK` 标记，并到达各自的既有结束断点。
+  最后执行普通配置，恢复普通镜像，到达 kernel_keyboard_wait。
+- 真实读取 CR0.PE/PG、CR4.PAE/LA57、EFER.LME/LMA、CS 与 LAR 描述符访问权，
+  核对四级分页、IA-32e 激活、64 位 ring0 代码段、物理 CR3=0x101000。
+  从 RIP 相对标签与 RSP 寄存器取得真实地址，核对高半区和 48 位规范地址条件。
+- 系统调用往返和边界检查、四种用户保护故障、IRQ/任务现场恢复、分配器状态恢复、
+  真实键盘 IRQ1 的 a/b make/break 仍通过。普通配置没有主动 CPU 异常。
+- 普通内核为 78,152 字节，Loader 为 2,301 字节，软盘为 1,474,560 字节。
+  将基线 Loader 源码重新汇编后逐字节比较，确认本章 Loader 注释未改变其机器码。
+- `nm -u bin/system` 无未解析符号，ELF64 入口保持 0xffff800000100000。
+  检查普通 `.user.text` 反汇编，193 字节载荷无段外 CALL 或数据引用。
+  Python 脚本语法、Markdown 本地链接和 `git diff --check` 均通过。
+
+最终普通日志中的新增输出：
+
+```text
+Processor registers: CR0=0x00000000e0000011 CR3=0x0000000000101000 CR4=0x0000000000000020
+Processor code: EFER=0x0000000000000500 CS=0x08 LAR=0x00209900 RIP=0xffff800000109f2c RSP=0xffff800000123ef0
+Processor mode OK: IA-32e active, 64-bit code, CPL0; 4-level paging, canonical RIP/RSP
+```
+
+日志在 `bin/smoke-{normal,feature}.log` 与 `bin/bochs-{normal,feature}.log`，不提交。
+LAR 输出为本次读数；检查只使用有定义且相关的访问权位，不把其余位作为固定协议值。
+本次仅验证当前模式契约的成功路径，没有注入错误控制寄存器或错误 GDT，
+也没有逐条截获实模式/保护模式的中间现场。此检查发生在 Rust 入口之后，
+不能替代启动前的能力检查或完整页表验证。
+RFB 的 32 bpp 显示限制仍在；只验证 CPU 执行、MMIO 流程与日志，没有 GUI 或真机验证。
