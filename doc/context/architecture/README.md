@@ -16,7 +16,7 @@ BIOS
                 └── keyboard.rs::init → ready → run → STI/HLT 等待 IRQ1
 ```
 
-- [启动与交接协议](boot.md)：物理地址、链接布局、汇编保留原因。
+- [启动与交接协议](boot.md)：第 7 章实模式读盘/保护模式复制、A20 检查、物理布局与汇编边界。
 - [处理器体系结构](processor.md)：实模式/保护模式/IA-32e、地址变换和启动状态检查。
 - [图形控制台](console.md)：VBE、字体、边界与格式化。
 - [异常](exceptions.md)：GDT/IDT/TSS、IST、栈 ABI、诊断。

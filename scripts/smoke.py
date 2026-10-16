@@ -77,8 +77,16 @@ def main() -> None:
     boundary = "kernel_halt" if expecting_fault or args.expect == "keyboard-check" else "kernel_keyboard_wait"
     address = next(line.split()[0] for line in symbols.splitlines()
                    if line.split()[-1] == boundary)
+    expected_kernel = Path("bin/kernel.bin").read_bytes()
+    loaded_kernel = Path("bin/kernel-loaded.bin")
+    # 清除上次取样，避免本次未到达入口时误用旧文件。物理 1 MiB 在过渡页表中
+    # 恒等映射；在 head.S 第一条指令之前取样，尚未改页表/GDT/BSS 等内核内容。
+    loaded_kernel.unlink(missing_ok=True)
     # 普通内核现在持续接收输入：到达等待入口才退出。键盘检查须收到四个字节才停机。
-    Path("bin/smoke.rc").write_text(f"lb 0x{address}\nc\nq\n")
+    Path("bin/smoke.rc").write_text(
+        f"lb 0x100000\nlb 0x{address}\nc\n"
+        f'writemem "bin/kernel-loaded.bin" 0x100000 {len(expected_kernel)}\n'
+        "delete 1\nc\nq\n")
     output = Path("bin/smoke-output.log")
     client = None
     try:
@@ -102,7 +110,8 @@ def main() -> None:
         if client:
             client.close()
     text = output.read_text(errors="replace")
-    required = ["VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
+    required = ["Loader copy OK: A20 verified; protected-mode sector copy",
+                "VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
                 "Processor mode OK: IA-32e active, 64-bit code, CPL0; 4-level paging, canonical RIP/RSP",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
                 "Physical page allocation/read-write/free OK",
@@ -148,7 +157,7 @@ def main() -> None:
         required += ["Task context checks OK: callee-saved GPRs, RSP, stack canaries; child IST return"]
     elif args.expect == "syscall-check":
         required += ["System call checks OK: GPRs, RSP, flags; number bounds, user ranges, length, UTF-8"]
-    required += [f"Breakpoint 1, 0x{address}"]
+    required += ["Breakpoint 1, 0x0000000000100000", f"Breakpoint 2, 0x{address}"]
     bochs_log = Path("bin/bochs-smoke.log").read_text(errors="replace")
     gui_reports = [line for line in bochs_log.splitlines() if ">>PANIC<<" in line]
     # 只容忍已确认的显示后端限制，不能把 CPU/设备 panic 一并忽略。
@@ -156,6 +165,8 @@ def main() -> None:
                           "[RFB   ] >>PANIC<< 32 bpp graphics mode not supported yet" not in line]
     missing = [marker for marker in required if marker not in text]
     errors = [line for line in text.splitlines() if "PANIC:" in line] + unexpected_reports
+    if not loaded_kernel.exists() or loaded_kernel.read_bytes() != expected_kernel:
+        errors.append("loaded kernel bytes differ from bin/kernel.bin")
     exceptions = [line for line in text.splitlines() if line.startswith("EXCEPTION ")]
     if not expecting_fault and exceptions:
         errors.extend(exceptions)
@@ -165,12 +176,14 @@ def main() -> None:
         print(text[-6000:])
         raise SystemExit(f"FAIL: exit={returncode}, missing={missing}, errors={errors}")
     suffix = args.expect or "normal"
-    Path(f"bin/smoke-{suffix}.log").write_text(text)
+    copy_summary = f"Loader memory verified: {len(expected_kernel)} bytes at physical 0x100000"
+    Path(f"bin/smoke-{suffix}.log").write_text(text + "\n" + copy_summary + "\n")
     Path(f"bin/bochs-{suffix}.log").write_text(bochs_log)
     start = text.index("VBE console ready")
     print(text[start:].split("Next at")[0].strip())
     if gui_reports:
         print("RFB limitation: 32 bpp display unavailable; CPU/MMIO/log verification only")
+    print(copy_summary)
     print(f"PASS: Bochs {args.expect or 'normal'} boot reached {boundary}")
 
 

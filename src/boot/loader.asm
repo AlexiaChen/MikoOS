@@ -1,9 +1,9 @@
-org 0x10000 ; BaseOfLoader << 4
+LoaderPhysicalBase equ 0x10000 ; 与 Boot 的 0x1000:0 交接一致
+org LoaderPhysicalBase
     jmp _Start
 
 %include "src/boot/fat12.inc"
 
-BaseOfKernelFile equ 0x00
 OffsetOfKernelFile equ 0x100000 ; 1MB offset
 
 BaseTempOfKernelAddress equ 0x00 
@@ -23,6 +23,9 @@ MemoryStructMaxEntries equ 32
 LABEL_GDT:		dd	0,0
 LABEL_DESC_CODE32:	dd	0x0000FFFF,0x00CF9A00
 LABEL_DESC_DATA32:	dd	0x0000FFFF,0x00CF9200
+; 返回实模式前先切回 16 位指令解码；base=0，G=1，D=0，limit=4 GiB-1。
+; 此段只执行清 PE 和远跳转，不访问栈，因此不需要在保护模式内换 SS。
+LABEL_DESC_CODE16:    dd 0x0000FFFF,0x008F9A00
 
 GdtLen	equ	$ - LABEL_GDT
 GdtPtr	dw	GdtLen - 1
@@ -30,6 +33,7 @@ GdtPtr	dw	GdtLen - 1
 
 SelectorCode32	equ	LABEL_DESC_CODE32 - LABEL_GDT
 SelectorData32	equ	LABEL_DESC_DATA32 - LABEL_GDT
+SelectorCode16 equ LABEL_DESC_CODE16 - LABEL_GDT
 
 [SECTION gdt64]
 
@@ -51,12 +55,15 @@ SelectorData64	equ	LABEL_DESC_DATA64 - LABEL_GDT64
 [BITS 16]    ; specify nasm use 16-bits mode
 
 _Start:
+    cli
+    cld
     mov ax, cs
     mov ds, ax
     mov es, ax
     mov ax, 0x00
     mov ss, ax
-    mov sp, 0x7c00
+    mov esp, 0x7c00
+    sti
 
 ; =========== display on screen : Start Loader
 
@@ -72,34 +79,17 @@ _Start:
     int 0x10
 
 ; A20 是地址线门控：打开后 bit20 不再强制为 0，跨过 1 MiB 的访问不会回绕。
-; 它不改变段 limit，也不启用分页；访问更高地址还需要下面的段缓存设置。
+; 它不改变段 limit，也不启用分页；访问更高地址还需要复制窗口的平坦段。
 
     push ax
     in al, 0x92
+    and al, 11111110b ; bit0 是快速复位，不能随读回值误写为 1
     or al, 00000010b
     out 0x92, al
     pop ax
 
-    cli ; close external interrupt
-
-    db 0x66
-    lgdt [GdtPtr] ; load information of protection mode
-
-    mov eax, cr0
-    or eax, 1 ; set bit 0 to 1 for cr0 register to open protection mode
-    mov cr0, eax
-
-; big/unreal mode：PE=1 时为 FS 加载 base=0、4 GiB limit 的描述符，再清 PE。
-; 回到实模式后仍借用 FS 的隐藏缓存，用 32 位偏移向物理 1 MiB 复制内核。
-; 此时 CS 仍走 16 位引导流程，可以继续使用 BIOS；不能重新加载 FS 抹掉缓存。
-; 这是现有 Loader 的阶段性做法，更完整的引导可靠性在第 7 章继续处理。
-    mov ax, SelectorData32
-    mov fs, ax
-    mov eax, cr0
-    and al, 11111110b
-    mov cr0, eax
-
-    sti
+; 第 7 章：不跨 BIOS 调用保存 unreal mode 的隐藏段缓存。
+; 读盘始终使用实模式 ES:BX，复制则由 _CopyKernelSector 显式切入平坦保护模式。
 
     ;=======	reset floppy
 
@@ -205,45 +195,7 @@ _Go_On_Loading_File:
 	call	_ReadOneSectorFunc
 	pop	ax
 
-;;;;;;;;;;;;;;;;;;;;;;;	
-	push	cx
-	push	eax
-	push	fs
-	push	edi
-	push	ds
-	push	esi
-
-	mov	cx,	0x200
-	mov	ax,	BaseOfKernelFile
-	mov	fs,	ax
-	mov	edi,	dword	[OffsetOfKernelFileCount]
-
-	mov	ax,	BaseTempOfKernelAddress
-	mov	ds,	ax
-	mov	esi,	OffsetTempOfKernelFile
-
-_Mov_Kernel:
-    mov	al,	byte	[ds:esi]
-	mov	byte	[fs:edi],	al
-
-	inc	esi
-	inc	edi
-
-	loop _Mov_Kernel
-
-	mov	eax,	0x1000
-	mov	ds,	eax
-
-	mov	dword	[OffsetOfKernelFileCount],	edi
-
-	pop	esi
-	pop	ds
-	pop	edi
-	pop	fs
-	pop	eax
-	pop	cx
-
-;;;;;;;;;;;;;;;;;;;;;;;	
+    call _CopyKernelSector
 
 	call _GetFATEntryFunc
 	cmp	ax,	0FFFh
@@ -256,6 +208,8 @@ _Mov_Kernel:
 	jmp	_Go_On_Loading_File
 
 _File_Loaded:
+    mov si, KernelCopyOKMessage - LoaderPhysicalBase
+    call _DebugString
 	mov	ax, 0x0B800 ; base address of display character
 	mov	gs, ax
 	mov	ah, 0x0F				; 0000: block background   1111: white text
@@ -630,11 +584,102 @@ no_support:
 [SECTION .s16lib]
 [BITS 16]
 
+; BIOS 将一个扇区送到低端 0x7e00；只有 512 字节，ES:BX 不会跨 64 KiB。
+; 内核目标从物理 1 MiB 起，用 EDI 连续推进，不能用 16 位 DI，否则在 64 KiB
+; 处回绕覆盖已装载内容。普通 x86_64 Rust 目标不能直接生成这里的 16/32 位过渡，
+; 所以这段模式边界保留汇编；内核仍全部由 Rust 实现。
+_CopyKernelSector:
+    pushfd
+    cli
+    pushad
+    push ds
+    push es
+    mov esi, OffsetTempOfKernelFile
+    mov edi, [OffsetOfKernelFileCount]
+    o32 lgdt [GdtPtr]
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    ; 置 PE 后立即远跳转，加载 CODE32 的隐藏属性并切换指令解码。
+    jmp dword SelectorCode32:_CopyKernelSector32
+
+[BITS 32]
+_CopyKernelSector32:
+    mov ax, SelectorData32
+    mov ds, ax
+    mov es, ax
+    ; A20 关闭会使 0x100500 与 0x500 别名。每次复制前实际写入不同值再读取，
+    ; 不能只把端口 0x92 的控制位读回当成地址线已经生效的证据。
+    ; 两个探测字节都恢复，先恢复高地址再恢复低地址，在别名时也不破坏原数据。
+    mov bl, [0x500]
+    mov bh, [0x100500]
+    mov byte [0x500], 0
+    mov byte [0x100500], 0xff
+    mov dl, [0x500]
+    mov [0x100500], bh
+    mov [0x500], bl
+    test dl, dl
+    jnz .a20_failed
+    mov ecx, 512
+    cld
+    rep movsb
+    mov [OffsetOfKernelFileCount], edi
+    mov byte [KernelCopyOK], 1
+    jmp .return16
+.a20_failed:
+    mov byte [KernelCopyOK], 0
+.return16:
+    ; 保护模式窗口内不调用 BIOS、不访问栈；原实模式 SS 缓存与 SP 保持。
+    ; 先加载 D=0 的代码段，再执行按 16 位编码的清 PE / 远跳转。
+    jmp SelectorCode16:_CopyKernelSector16
+
+[BITS 16]
+_CopyKernelSector16:
+    mov eax, cr0
+    and eax, 0xfffffffe
+    mov cr0, eax
+    ; ORG 为物理 0x10000，而实模式 CS=0x1000；偏移必须扣除段基址。
+    jmp word (LoaderPhysicalBase >> 4):(_CopyKernelSectorReal - LoaderPhysicalBase)
+_CopyKernelSectorReal:
+    pop es
+    pop ds
+    popad
+    popfd
+    cmp byte [KernelCopyOK], 1
+    jne _A20Failure
+    ret
+
+_A20Failure:
+    mov si, A20FailureMessage - LoaderPhysicalBase
+    call _DebugString
+.halt:
+    cli
+    hlt
+    jmp .halt
+
+; 仅供模拟器观察引导阶段；真实硬件仍以 BIOS 显示和启动结果为准。
+_DebugString:
+    pushf
+    push ax
+    push si
+    cld
+.next:
+    lodsb
+    test al, al
+    jz .done
+    out 0xe9, al
+    jmp .next
+.done:
+    pop si
+    pop ax
+    popf
+    ret
+
 _ReadOneSectorFunc:
 	
 	push	bp
 	mov	bp,	sp
-	sub	esp,	2
+	sub	sp,	2
 	mov	byte	[bp - 2],	cl
 	push	bx
 	mov	bl,	[SectorsPerTrack]
@@ -652,7 +697,7 @@ _Go_On_Reading:
 	mov	al,	byte	[bp - 2]
 	int	13h
 	jc	_Go_On_Reading
-	add	esp,	2
+	add	sp,	2
 	pop	bp
 	ret
 
@@ -755,12 +800,15 @@ RootDirSizeForLoop	dw	RootDirSectors
 SectorNo		dw	0
 Odd			db	0
 OffsetOfKernelFileCount	dd	OffsetOfKernelFile
+KernelCopyOK db 0
 
 DisplayPosition		dd	0
 
 ;=======	display messages
 
 StartLoaderMessage: db "Start Miko OS Loader" 
+KernelCopyOKMessage: db "Loader copy OK: A20 verified; protected-mode sector copy", 10, 0
+A20FailureMessage: db "Loader ERROR: A20 address alias", 10, 0
 NoKernelMessage: db "ERROR:No Kernel Found"
 KernelFileName:		db	"KERNEL  BIN",0
 StartGetMemStructMessage:	db	"Start Get Memory Struct."

@@ -1,6 +1,6 @@
 # 验证记录
 
-最新状态见末尾的 **2026-10-16：第 6 章处理器体系结构**；以下保留各阶段当时的验证边界。
+最新状态见末尾的 **2026-10-16：第 7 章第一部分**；以下保留各阶段当时的验证边界。
 
 2026-10-13：迁移基线 `a76a0b8` 的 C 内核到 Rust，未推进未实现的后续章节。
 验证环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM。
@@ -381,3 +381,45 @@ LAR 输出为本次读数；检查只使用有定义且相关的访问权位，�
 也没有逐条截获实模式/保护模式的中间现场。此检查发生在 Rust 入口之后，
 不能替代启动前的能力检查或完整页表验证。
 RFB 的 32 bpp 显示限制仍在；只验证 CPU 执行、MMIO 流程与日志，没有 GUI 或真机验证。
+
+## 2026-10-16：第 7 章第一部分
+
+基线为第 6 章提交 `625d6b9`。本次只完成目录中的“实模式的寻址瓶颈”对应搬运完善，
+不标记原版 `code/c07/7-1` U 盘实验或整个第 7 章为完成。
+对照 `c06/6-1`、`c07/7-2/物理平台` 的高地址搬运方式，
+以受控保护模式复制替代依赖 FS 隐藏缓存的路径，机制与差异见 [启动](../architecture/boot.md)。
+环境仍为 Rust 1.97.1、Bochs 2.7、Intel Sandy Bridge、legacy BIOS、2 GiB RAM。
+
+实现后实际执行：
+
+- 普通 `make check`：fmt 与 release Clippy（warnings 当错误）通过。
+- 全部 12 种 `make smoke` 通过：普通、memory-check、irq-check、keyboard-check、
+  task-check、syscall-check、fault-divide、fault-page 和四种 fault-user。
+  每次均离线编译并检查 FAT12 镜像；本次没有重新运行其余 11 种配置的 Clippy。
+- 每次在 head.S 第一条指令前停住，`writemem` 导出物理 1 MiB 起的实际装载内容，
+  与对应 `kernel.bin` 逐字节一致。普通为 78,152 字节，memory-check 为 82,264 字节；
+  均跨过 64 KiB，覆盖实际扇区读取、累计目标偏移和复制路径，而非只凭进入 Rust 推断成功。
+- Loader 每个复制窗口都通过 A20 双地址检查，全部复制完成后输出阶段标记。
+  内核依次通过第 6 章模式检查、内存、IRQ、任务、用户态/系统调用与键盘路径。
+  四种用户保护和原 #DE/#PF 的预期故障仍成立；普通路径没有主动 CPU 异常。
+- 最后执行普通 `make smoke`，恢复普通镜像并到达 kernel_keyboard_wait。
+  Loader 为 2,506 字节，普通 Kernel 为 78,152 字节，软盘为 1,474,560 字节。
+- Python 语法、上下文 Markdown 链接、`git diff --check` 通过；
+  `nm -u bin/system` 无未解析符号，ELF 入口保持 0xffff800000100000。
+
+关键证据：
+
+```text
+Loader copy OK: A20 verified; protected-mode sector copy
+Processor mode OK: IA-32e active, 64-bit code, CPL0; 4-level paging, canonical RIP/RSP
+Loader memory verified: 78152 bytes at physical 0x100000
+PASS: Bochs normal boot reached kernel_keyboard_wait
+```
+
+每份 `bin/smoke-{normal,feature}.log` 保留装载取样断点和宿主字节核对结果；
+`bin/kernel-loaded.bin` 为最后一次运行的原始取样，全部位于忽略的 bin/ 内。
+第一个断点用于装载取样、第二个用于原内核结束边界，历史单断点日志不适用于当前脚本。
+
+边界：没有注入 A20 关闭验证拒绝分支，也没有损坏 FAT 链、NMI 窗口、
+其他 A20 控制方式、U 盘/硬盘 EDD、其他 BIOS、GUI 或真机验证。
+当前 32 bpp RFB 白名单与显示限制仍沿用前章，不将模拟器检查解释为真机支持。

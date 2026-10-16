@@ -46,8 +46,9 @@ Intel/SEP/NX，详见 [用户态](usermode.md)。第 6 章不新增 CPU 品牌�
 ## 三种模式怎样连接
 
 ```text
-BIOS → Boot / Loader：实模式，BIOS 中断读取 FAT12、E820、VBE
-    → 临时 PE=1 加载平坦 FS，再 PE=0：unreal mode 搬运内核
+BIOS → Boot / Loader：实模式，BIOS 中断读取 FAT12
+    → 每扇区：PE=1 / CODE32 平坦复制 → CODE16 / PE=0 返回实模式
+    → 实模式获取 E820 / VBE
     → CR0.PE=1，远跳转到 CODE32：保护模式，PG=0
     → CR4.PAE=1 → CR3=0x90000 → EFER.LME=1
     → CR0.PG=1：IA-32e 激活，EFER.LMA=1，旧 CS 仍是兼容子模式
@@ -56,10 +57,10 @@ BIOS → Boot / Loader：实模式，BIOS 中断读取 FAT12、E820、VBE
 ```
 
 实模式便于使用 BIOS，但普通 16 位段偏移限制了内核搬运范围。
-现有 Loader 打开 A20 后，短暂置 PE，为 FS 加载基址 0、界限 4 GiB 的平坦数据段，
-清 PE 后保留其隐藏缓存，继续通过 32 位偏移搬运内核到 1 MiB。
-这称为 big/unreal mode，不是 IA-32e 的兼容模式；重新加载 FS 会改变隐藏缓存。
-本章解释现有实现，BIOS 调用与段缓存的进一步可靠性留到第 7 章。
+第 6 章基线使用 big/unreal mode：短暂置 PE，为 FS 加载平坦段，清 PE 后借用隐藏缓存搬运。
+这不是 IA-32e 兼容模式。第 7 章第一部分已改为每扇区的受控保护模式窗口，详见 [启动](boot.md)：
+BIOS 负责实模式低端读盘，平坦保护模式负责复制，再经 16 位代码段回到实模式。
+当前路径不再依赖 FS 缓存跨 BIOS 调用保持。
 
 正式切到保护模式时，先 LGDT、置 CR0.PE，再远跳转加载 CODE32。
 PE 开启保护机制，远跳转更新 CS 隐藏属性；此后代码不再调用实模式 BIOS。

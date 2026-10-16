@@ -37,6 +37,12 @@ make smoke FEATURES=fault-user-privileged
 make                  # 演示后恢复正常启动镜像
 ```
 
+第 7 章起，smoke 先在内核入口 `0x100000` 停住，使用 Bochs 的 `writemem`
+导出 `bin/kernel-loaded.bin`，核对与 `bin/kernel.bin` 完全一致，再继续启动检查。
+第一个断点用于装载取样，第二个断点用于内核等待/停机；旧日志的单断点编号属于历史版本。
+导出前删除上次取样，避免旧文件成为本次证据；成功日志包含 `Loader memory verified`。
+命令语义见 [Bochs 调试器手册](https://bochs.sourceforge.io/doc/docbook/user/internal-debugger.html)。
+
 smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本地 VNC 监听端口），
 检查 0xe9 输出中的阶段标记、内存一致性与故障结果；无客户端也能运行。
 普通启动还会进行物理页分配、已映射页实际读写和释放演示。
