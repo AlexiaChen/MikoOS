@@ -9,7 +9,7 @@ BIOS
                 ├── console.rs::init / kprint!
                 ├── gate.rs::init → trap.rs::init
                 ├── processor.rs::verify_boot_mode → 只读核对模式/代码段/分页根/高半区
-                ├── memory.rs::init → memory/allocator.rs 分配/释放演示
+                ├── memory.rs::init → bootinfo.rs 交接/布局校验 → memory/allocator.rs 分配/释放演示
                 ├── interrupt.rs::init → demonstrate_timer
                 ├── task.rs::demonstrate → init 让出/恢复/退出 → 启动任务回收
                 ├── usermode.rs::demonstrate → SYSEXIT64 → Rust ring3 → SYSENTER 服务/返回 → 完成通知 → 清理
@@ -17,6 +17,7 @@ BIOS
 ```
 
 - [启动与交接协议](boot.md)：第 7 章实模式读盘/保护模式复制、A20 检查、物理布局与汇编边界。
+- [E820 交接与引导布局](bootinfo.md)：完整版本头、固件返回规范化、区间与布局校验。
 - [处理器体系结构](processor.md)：实模式/保护模式/IA-32e、地址变换和启动状态检查。
 - [图形控制台](console.md)：VBE、字体、边界与格式化。
 - [异常](exceptions.md)：GDT/IDT/TSS、IST、栈 ABI、诊断。

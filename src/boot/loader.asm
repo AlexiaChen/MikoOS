@@ -9,11 +9,22 @@ OffsetOfKernelFile equ 0x100000 ; 1MB offset
 BaseTempOfKernelAddress equ 0x00 
 OffsetTempOfKernelFile equ 0x7E00 ; Temp space address for reading kernel file
 
-; Rust 交接协议：32 个 20 字节 E820 条目，数量单独存放。
+; Rust 交接协议 v1：16 字节头 + 32 个 20 字节规范化 E820 条目。
 ; 旧 0x7e00 缓冲区可能与 0x8000 VBE 信息重叠，改为不冲突的低端内存。
 MemoryStructBufferAddress equ 0x5000
-MemoryStructCountAddress equ 0x4ff0
+MemoryStructHeaderAddress equ 0x4ff0
+MemoryStructCountAddress equ MemoryStructHeaderAddress + 8
 MemoryStructMaxEntries equ 32
+MemoryStructScratchAddress equ 0x5300 ; BIOS 的 24 字节返回不直接写进 20 字节数组
+%if MemoryStructHeaderAddress + 16 != MemoryStructBufferAddress
+    %error "E820 header/table layout mismatch"
+%endif
+%if MemoryStructBufferAddress + MemoryStructMaxEntries * 20 > MemoryStructScratchAddress
+    %error "E820 table overlaps scratch"
+%endif
+%if MemoryStructScratchAddress + 24 > 0x6000
+    %error "E820 buffers intrude into early stack area"
+%endif
 
 [SECTION gdt]
 
@@ -240,30 +251,85 @@ KillMotor:
 	mov	ebx,	0
 	mov	ax,	0x00
 	mov	es,	ax
-	mov	di,	MemoryStructBufferAddress
-	mov word [es:MemoryStructCountAddress], 0
+    cld
+    mov di, MemoryStructHeaderAddress
+    mov cx, (16 + MemoryStructMaxEntries * 20) / 2
+    rep stosw ; AX=0：先清旧表与完成标志，失败不能留下可被接受的旧交接
+    mov dword [es:MemoryStructHeaderAddress], 0x30323845 ; 'E820'
+    mov word [es:MemoryStructHeaderAddress + 4], 1
+    mov word [es:MemoryStructHeaderAddress + 6], 20
+    mov word [es:MemoryStructHeaderAddress + 10], MemoryStructMaxEntries
 
 _Get_Mem_Struct:
-    cmp word [es:MemoryStructCountAddress], MemoryStructMaxEntries
-    jae _Get_Mem_Fail ; 容量不足时停止，不能越界或静默截断内存图
-	; E820 memory map
-	mov	eax,	0x0E820 ; 
-	mov	ecx,	20 ; buffer szie must >= 20
-	mov	edx,	0x534D4150 ; signature "SMAP" used by the BIOS to verify the caller is requesting the system map info to be returned by
-	int	15h
-	jc	_Get_Mem_Fail
+    ; EBX 是不透明的续传令牌，第一轮为 0，之后必须原样传回 BIOS。
+    ; 每次只写独立 24 字节 scratch；即使表已满，也能安全探测下一轮 CF 终止。
+    xor ax, ax
+    mov es, ax
+    mov di, MemoryStructScratchAddress
+    mov cx, 12
+    cld
+    rep stosw
+    mov di, MemoryStructScratchAddress
+    mov dword [es:di + 20], 1 ; 兼容只返回 20 字节的旧 BIOS
+    mov eax, 0xe820
+    mov ecx, 24
+    mov edx, 0x534d4150
+    push ds
+    push es
+    push di
+    int 0x15
+    pop di
+    pop es
+    pop ds ; POP 不修改 CF，续传令牌与返回的 EAX/ECX 仍保留
+    jc _Get_Mem_End_CF
     cmp eax, 0x534d4150
     jne _Get_Mem_Fail
     cmp ecx, 20
-    jb _Get_Mem_Fail
+    je .copy
+    cmp ecx, 24
+    jne _Get_Mem_Fail ; 只接受完整的基础条目或完整的扩展条目
+    test dword [es:di + 20], 1
+    jnz .attributes
+    mov dword [es:di + 8], 0 ; 旧规范未启用的条目保留槽位，但长度归零
+    mov dword [es:di + 12], 0
+.attributes:
+    test dword [es:di + 20], 0xfffffffe
+    jz .copy
+    ; 20 字节 ABI 无处保留扩展属性，带错误日志或其他属性的区间保守视作保留。
+    mov dword [es:di + 16], 2
+.copy:
+    cmp word [es:MemoryStructCountAddress], MemoryStructMaxEntries
+    jae _Get_Mem_Fail ; 不静默截断，也不因零长度/忽略条目而无限循环
+    mov ax, [es:MemoryStructCountAddress]
+    imul ax, 20
+    add ax, MemoryStructBufferAddress
+    mov di, ax
+    mov si, MemoryStructScratchAddress
+    push ds
+    push es
+    pop ds
+    mov cx, 10
+    cld
+    rep movsw
+    pop ds
     inc word [es:MemoryStructCountAddress]
-	add	di,	20
+    test ebx, ebx
+    jnz _Get_Mem_Struct
+    jmp _Get_Mem_Complete
 
-	cmp	ebx,	0; returned previous memory map if first call it return 0
-	jne	_Get_Mem_Struct
-	jmp	_Get_Mem_OK
+_Get_Mem_End_CF:
+    ; ACPI 也允许末尾用 CF=1 结束；首轮 CF 表示没有可用的交接结果。
+    cmp word [es:MemoryStructCountAddress], 0
+    je _Get_Mem_Fail
+_Get_Mem_Complete:
+    mov dword [es:MemoryStructHeaderAddress + 12], 1 ; 最后发布 complete
+    mov si, MemoryMapOKMessage - LoaderPhysicalBase
+    call _DebugString
+    jmp _Get_Mem_OK
 
 _Get_Mem_Fail:
+    mov si, MemoryMapFailureMessage - LoaderPhysicalBase
+    call _DebugString
 
 	mov	ax,	0x1301
 	mov	bx,	0x008C
@@ -387,6 +453,8 @@ Label_SVGA_Mode_Info_Get:
 	jz	Label_SVGA_Mode_Info_Finish
 
 	mov	ax,	4F01h
+    cmp edi, LoaderPhysicalBase - 0x100
+    ja Label_SVGA_Mode_Info_FAIL ; 256 字节 ModeInfo 不得跨入正在执行的 Loader
 	int	10h
 
 	cmp	ax,	004Fh
@@ -809,6 +877,8 @@ DisplayPosition		dd	0
 StartLoaderMessage: db "Start Miko OS Loader" 
 KernelCopyOKMessage: db "Loader copy OK: A20 verified; protected-mode sector copy", 10, 0
 A20FailureMessage: db "Loader ERROR: A20 address alias", 10, 0
+MemoryMapOKMessage: db "Loader E820 complete: version=1, stride=20, capacity=32", 10, 0
+MemoryMapFailureMessage: db "Loader ERROR: E820 incomplete or invalid", 10, 0
 NoKernelMessage: db "ERROR:No Kernel Found"
 KernelFileName:		db	"KERNEL  BIN",0
 StartGetMemStructMessage:	db	"Start Get Memory Struct."

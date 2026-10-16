@@ -1,20 +1,23 @@
 //! 第 4 章初级内存管理：E820 → 2 MiB 物理页 → 位图/Page/Zone。
 //! 建立描述与预留记录，提供连续物理页分配；不会把所有 RAM 加入页表。
 mod allocator;
-use crate::{arch, console, kprint};
+use crate::{
+    arch,
+    bootinfo::{self, E820Entry, MAX_ENTRIES},
+    console, kprint,
+};
 #[cfg(feature = "memory-check")]
 pub use allocator::verify;
 pub use allocator::{AllocationArea, PageRun, allocate_pages, free_pages};
 use core::{
     mem::size_of,
-    ptr::{addr_of, addr_of_mut, null_mut, read_unaligned},
+    ptr::{addr_of, addr_of_mut, null_mut},
 };
 
 pub const PAGE_OFFSET: usize = 0xffff800000000000;
 pub const PAGE_2M_SIZE: usize = 1 << 21;
 const PAGE_4K_SIZE: usize = 1 << 12;
 const DIRECT_RAM_END: usize = 10 * 1024 * 1024;
-const MAX_ENTRIES: usize = 32;
 const MAX_ZONES: usize = MAX_ENTRIES;
 
 #[allow(dead_code)]
@@ -31,20 +34,7 @@ pub mod flags {
     pub const SLAB: u64 = 1 << 9;
 }
 
-/// BIOS 的 E820 条目恰好 20 字节。packed 字段不能直接借用给格式化器。
-#[repr(C, packed)]
-#[derive(Clone, Copy)]
-pub struct E820Entry {
-    address: u64,
-    length: u64,
-    kind: u32,
-}
 impl E820Entry {
-    const EMPTY: Self = Self {
-        address: 0,
-        length: 0,
-        kind: 0,
-    };
     fn end(self) -> usize {
         usize::try_from(
             self.address
@@ -65,7 +55,6 @@ impl E820Entry {
         (end > start).then_some((start, end))
     }
 }
-const _: () = assert!(size_of::<E820Entry>() == 20);
 
 /// 与原实现一样，描述符按物理页号索引，空洞也占槽位，但永不标为空闲。
 /// 位图解决“在哪里找空闲页”，这里解决“找到的页归谁、是否仍被使用”。将两者
@@ -208,8 +197,9 @@ pub unsafe fn init() {
     // SAFETY: 仅 Start_Kernel 调用一次，中断关闭；运行期间无其他访问 MEMORY 的执行流。
     unsafe {
         let memory = &mut *addr_of_mut!(MEMORY);
-        let count = read_unaligned((PAGE_OFFSET + 0x4ff0) as *const u16) as usize;
-        assert!(count > 0 && count <= MAX_ENTRIES, "invalid E820 count");
+        let map = bootinfo::read_memory_map();
+        let count = map.count;
+        memory.e820 = map.entries;
         memory.number_entries = count;
         let mut physical_end = 0;
         let mut total_ram = 0u64;
@@ -219,8 +209,7 @@ pub unsafe fn init() {
             "Physical address map (1=RAM, 2=reserved, 3=ACPI reclaim, 4=NVS, 5=bad)\n"
         );
         for i in 0..count {
-            let entry = read_unaligned((PAGE_OFFSET + 0x5000 + i * 20) as *const E820Entry);
-            memory.e820[i] = entry;
+            let entry = memory.e820[i];
             let E820Entry {
                 address,
                 length,
@@ -230,6 +219,9 @@ pub unsafe fn init() {
                 console::ORANGE,
                 "Address:{address:#018x} Length:{length:#018x} Type:{kind}\n"
             );
+            if length == 0 {
+                continue;
+            }
             // 不能假定 BIOS 按地址排序，不能把 type=5 当成终止标记。
             physical_end = physical_end.max(entry.end());
             if kind == 1 {
@@ -281,10 +273,11 @@ pub unsafe fn init() {
             "metadata exceeds initial 10 MiB RAM mapping"
         );
         assert!(
-            memory.e820[..count].iter().any(|e| e.kind == 1
-                && e.address <= (kernel_end - PAGE_OFFSET) as u64
-                && e.end() >= physical_metadata_end),
-            "metadata is not contained in usable RAM"
+            map.contains_usable(
+                addr_of!(_text) as usize - PAGE_OFFSET,
+                physical_metadata_end
+            ),
+            "kernel and metadata are not contained in usable RAM"
         );
         memory.bits_map = bitmap as *mut u64;
         memory.pages = pages as *mut Page;

@@ -1,6 +1,6 @@
 # 验证记录
 
-最新状态见末尾的 **2026-10-16：第 7 章第一部分**；以下保留各阶段当时的验证边界。
+最新状态见末尾的 **2026-10-16：第 7 章 E820 与引导内存布局**；以下保留各阶段当时的验证边界。
 
 2026-10-13：迁移基线 `a76a0b8` 的 C 内核到 Rust，未推进未实现的后续章节。
 验证环境：Rust 1.97.1、x86_64-unknown-none、Bochs 2.7、legacy BIOS、2 GiB RAM。
@@ -423,3 +423,47 @@ PASS: Bochs normal boot reached kernel_keyboard_wait
 边界：没有注入 A20 关闭验证拒绝分支，也没有损坏 FAT 链、NMI 窗口、
 其他 A20 控制方式、U 盘/硬盘 EDD、其他 BIOS、GUI 或真机验证。
 当前 32 bpp RFB 白名单与显示限制仍沿用前章，不将模拟器检查解释为真机支持。
+
+## 2026-10-16：第 7 章 E820 与引导内存布局
+
+基线为 `87442e4`。对应目录中的物理地址空间信息和引导内存划分，
+参考原版 `c07/7-2/物理平台/bootloader/loader.asm` 的 E820 路径；
+当前以独立 scratch、完整版本头和 Rust 检查完善交接。协议见 [E820 交接](../architecture/bootinfo.md)。
+
+实现后实际执行：
+
+- 全部 12 种配置的 `make check` 均通过（fmt、release Clippy、warnings 当错误），
+  配置为普通、memory-check、irq-check、keyboard-check、task-check、syscall-check、
+  fault-divide、fault-page 及四种 fault-user。
+- 同组 12 种 `make smoke` 全部通过，包含离线构建、FAT12 镜像检查、内核装载字节比对、
+  新 E820 原始交接区取样与逐条内核解析比对，随后仍到达各自既有结束断点。
+  最后恢复普通配置并到达 kernel_keyboard_wait。
+- Bochs 实际交接头为 magic=E820、version=1、stride=20、count=5、capacity=32、flags=1。
+  五条描述符与内核输出完全一致，新增固定布局检查通过；普通页数仍 free=1023、reserved=1。
+- memory-check 的局部输入验证通过：32 条数量上界可接受；坏 magic/version/stride/capacity、
+  incomplete、0/33 数量被拒绝；端地址溢出、重复 RAM、RAM 覆盖 reserved 被拒绝；
+  无序、相邻区间、未知类型和零长度可接受；可用范围末端、保留区和空区间检查正确。
+  这些验证没有修改真实 BIOS 缓冲或分配器。
+- 分配器耗尽/恢复、IRQ/任务返回现场、SYSENTER 服务与边界请求、真实键盘 IRQ1、
+  原 #DE/#PF 和四种用户保护仍通过，普通镜像没有主动异常。
+- 最终 Loader 2,789 字节，普通 Kernel 86,504 字节，软盘 1,474,560 字节。
+  `nm -u bin/system` 无未解析符号，ELF 入口保持 0xffff800000100000；
+  普通用户载荷反汇编仍无段外调用或数据引用。Python 语法、Markdown 链接与 diff 空白检查通过。
+
+新增关键日志：
+
+```text
+Loader E820 complete: version=1, stride=20, capacity=32
+E820 handoff OK: version=1, entries=5, stride=20; complete, no overlaps
+Boot memory layout OK: handoff, stack, VBE scratch, loader, temporary page tables
+E820 input checks OK: header, overflow, overlaps, ordering, reserved ranges
+```
+
+最后一条只出现在 memory-check。证据保存在 `bin/smoke-{normal,feature}.log`，
+`bin/boot-memory-map.bin` 是最后普通配置的完整 656 字节头/数组快照；生成物不提交。
+
+限制：局部输入验证不能替代固件分支注入。未分别模拟 BIOS 的 20/24 字节、扩展属性、
+CF 结束、错误长度/签名或超过 32 条返回；未注入 VBE 临时区超限。
+拒绝重叠是一种保守限制，没有通用 E820 修复或任意碎片布局支持。
+Rust 布局校验发生在 Loader/内核入口之后，不能追溯防止早期内存写入。
+RFB/GUI、其他固件、NMI、U 盘/硬盘启动、UEFI 与真机的验证边界仍同前。

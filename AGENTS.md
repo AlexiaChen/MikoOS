@@ -35,6 +35,7 @@ doc/context/
 ├── architecture/
 │   ├── README.md                # 启动到 Rust 的调用链
 │   ├── boot.md                  # BIOS/FAT12、交接协议、汇编边界
+│   ├── bootinfo.md              # E820 v1 交接、区间校验、引导布局
 │   ├── processor.md             # 处理器模式、地址变换、启动状态检查
 │   ├── console.md               # 帧缓冲、字体与格式化输出
 │   ├── exceptions.md            # GDT/IDT/TSS、异常栈与 ABI

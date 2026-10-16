@@ -40,6 +40,8 @@ make                  # 演示后恢复正常启动镜像
 第 7 章起，smoke 先在内核入口 `0x100000` 停住，使用 Bochs 的 `writemem`
 导出 `bin/kernel-loaded.bin`，核对与 `bin/kernel.bin` 完全一致，再继续启动检查。
 第一个断点用于装载取样，第二个断点用于内核等待/停机；旧日志的单断点编号属于历史版本。
+同一入口还导出 `bin/boot-memory-map.bin`（0x4ff0 起 656 字节），检查 E820 v1 头与数量，
+逐条核对原始交接描述符和内核日志，确认 Loader 与 Rust 解析一致。
 导出前删除上次取样，避免旧文件成为本次证据；成功日志包含 `Loader memory verified`。
 命令语义见 [Bochs 调试器手册](https://bochs.sourceforge.io/doc/docbook/user/internal-debugger.html)。
 
@@ -75,7 +77,8 @@ smoke 使用 conf/smoke-bochsrc 的 RFB 后端（不要求桌面，仍创建本�
 `keyboard-check` 验证队列 FIFO/环绕/溢出，并由宿主经本次 Bochs 的本机 VNC 发送 a/b 按下与松开，
 核对 IRQ1 收到 1e/9e/30/b0 后停机。RFB 握手与按键发送由 Python 标准库完成，无额外依赖；
 不请求 framebuffer 更新，不把发送成功当作接收成功，每个事件等待内核日志确认。
-`memory-check` 在 PIC 初始化之前追加实现完成后的分配器验证：零/超大请求、65 页跨位图字、
+`memory-check` 在元数据写入前用局部输入核对 E820 头字段、数量上界、溢出、重叠、无序与保留边界。
+随后在 PIC 初始化之前追加分配器验证：零/超大请求、65 页跨位图字、
 不重叠、释放复用、映射区碎片和耗尽、整段 RAM 耗尽及状态恢复。它不主动触发 CPU 异常。
 扩展验证针对当前 2 GiB Bochs 的单个无预留完整 RAM Zone，并需 65 个连续空闲页和至少
 两个映射区空闲页；不满足前提会明确 panic，不能用此检查宣称任意 E820 布局均已验证。

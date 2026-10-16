@@ -79,13 +79,16 @@ def main() -> None:
                    if line.split()[-1] == boundary)
     expected_kernel = Path("bin/kernel.bin").read_bytes()
     loaded_kernel = Path("bin/kernel-loaded.bin")
+    loaded_map = Path("bin/boot-memory-map.bin")
     # 清除上次取样，避免本次未到达入口时误用旧文件。物理 1 MiB 在过渡页表中
     # 恒等映射；在 head.S 第一条指令之前取样，尚未改页表/GDT/BSS 等内核内容。
     loaded_kernel.unlink(missing_ok=True)
+    loaded_map.unlink(missing_ok=True)
     # 普通内核现在持续接收输入：到达等待入口才退出。键盘检查须收到四个字节才停机。
     Path("bin/smoke.rc").write_text(
         f"lb 0x100000\nlb 0x{address}\nc\n"
         f'writemem "bin/kernel-loaded.bin" 0x100000 {len(expected_kernel)}\n'
+        'writemem "bin/boot-memory-map.bin" 0x4ff0 656\n'
         "delete 1\nc\nq\n")
     output = Path("bin/smoke-output.log")
     client = None
@@ -111,6 +114,9 @@ def main() -> None:
             client.close()
     text = output.read_text(errors="replace")
     required = ["Loader copy OK: A20 verified; protected-mode sector copy",
+                "Loader E820 complete: version=1, stride=20, capacity=32",
+                "E820 handoff OK: version=1, entries=",
+                "Boot memory layout OK: handoff, stack, VBE scratch, loader, temporary page tables",
                 "VBE console ready", "Hello\tMiko\tOS!", "GDT/IDT/TSS ready",
                 "Processor mode OK: IA-32e active, 64-bit code, CPL0; 4-level paging, canonical RIP/RSP",
                 "Memory invariants OK", "Identity mapping removed; high-half mapping retained",
@@ -147,7 +153,8 @@ def main() -> None:
         required += ["EXCEPTION 14 (page fault) ERROR=0x0000000000000000",
                      "CR2=0xffff80000aa00000", "instruction_fetch=false"]
     elif args.expect == "memory-check":
-        required += ["Page allocator checks OK: cross-word, reuse, fragmentation, exhaustion;"]
+        required += ["Page allocator checks OK: cross-word, reuse, fragmentation, exhaustion;",
+                     "E820 input checks OK: header, overflow, overlaps, ordering, reserved ranges"]
     elif args.expect == "irq-check":
         required += ["IRQ context checks OK: GPRs, RFLAGS, RSP; software IRQ7/15 spurious paths"]
     elif args.expect == "keyboard-check":
@@ -167,6 +174,22 @@ def main() -> None:
     errors = [line for line in text.splitlines() if "PANIC:" in line] + unexpected_reports
     if not loaded_kernel.exists() or loaded_kernel.read_bytes() != expected_kernel:
         errors.append("loaded kernel bytes differ from bin/kernel.bin")
+    # 原始交接字节与内核实际打印的解析结果交叉核对，避免只凭一条阶段日志判成功。
+    raw = loaded_map.read_bytes() if loaded_map.exists() else b""
+    if len(raw) != 656:
+        errors.append("missing E820 handoff snapshot")
+    else:
+        magic, version, stride, count, capacity, flags = struct.unpack_from("<IHHHHI", raw)
+        if (magic, version, stride, capacity, flags) != (0x30323845, 1, 20, 32, 1) or not 1 <= count <= 32:
+            errors.append("invalid E820 handoff snapshot")
+        else:
+            if f"E820 handoff OK: version=1, entries={count}, stride=20;" not in text:
+                errors.append("E820 header count differs from kernel")
+            for index in range(count):
+                base, length, kind = struct.unpack_from("<QQI", raw, 16 + index * 20)
+                marker = f"Address:{base:#018x} Length:{length:#018x} Type:{kind}"
+                if marker not in text:
+                    errors.append(f"E820 descriptor {index} differs from kernel")
     exceptions = [line for line in text.splitlines() if line.startswith("EXCEPTION ")]
     if not expecting_fault and exceptions:
         errors.extend(exceptions)

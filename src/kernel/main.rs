@@ -4,6 +4,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod arch;
+mod bootinfo;
 mod console;
 mod font;
 mod gate;
